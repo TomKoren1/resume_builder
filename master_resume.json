@@ -1,61 +1,95 @@
 {
-  "name": "Jane Doe",
-  "title": "DevOps / Site Reliability Engineer",
+  "name": "Tom Koren",
+  "title": "DevOps Engineer",
   "contact": {
-    "email": "jane.doe@example.com",
-    "phone": "+1-555-123-4567",
-    "location": "Remote / USA",
-    "linkedin": "linkedin.com/in/janedoe",
-    "github": "github.com/janedoe"
+    "email": "REDACTED_EMAIL",
+    "phone": "REDACTED_PHONE",
+    "location": "Ramat Gan, Israel",
+    "linkedin": "linkedin.com/in/tom-koren1",
+    "github": "github.com/TomKoren1"
   },
-  "summary": "DevOps engineer with experience building CI/CD pipelines, managing Kubernetes clusters, and automating cloud infrastructure with Terraform. Comfortable across AWS, Docker, and observability tooling.",
+  "summary": "Multi-certified DevOps Engineer (AWS SAA, CKA, RHCSA) and Computer Science student highly proficient in AWS, Kubernetes, and Linux. Dedicated to automating cloud infrastructure using Terraform and building reliable CI/CD pipelines. Combines an automation-first mindset with hands-on experience using Generative AI and AI-assisted development tools (Claude Code, GitHub Copilot) to optimize system reliability and software delivery.",
   "skills": [
-    "AWS (EC2, S3, IAM, Bedrock, Lambda)",
-    "Terraform",
-    "Kubernetes",
-    "Docker",
-    "GitHub Actions",
-    "Python",
-    "Bash",
-    "Prometheus / Grafana",
-    "LocalStack"
+    "Cloud & Infrastructure: AWS (EC2, S3, IAM, VPC, ECR, EKS, CLI), Linux (RHEL, internals & node-level debugging), Docker, Kubernetes (control plane & architecture)",
+    "CI/CD & IaC: Terraform, GitHub Actions, ArgoCD, GitOps, Git SCM",
+    "Monitoring & Observability: Prometheus, Grafana, AWS CloudWatch, OpenTelemetry",
+    "Programming & Scripting: Python, Bash, SQL, JavaScript, REST APIs",
+    "Networking & Security: DNS, TLS, HTTP, TCP/IP, IAM, networking fundamentals",
+    "AI & Workflows: Generative AI integration, LLM APIs, AI-assisted development (Claude Code, GitHub Copilot)"
   ],
+  "languages": ["Hebrew", "English"],
   "experience": [
     {
-      "company": "Example Corp",
-      "role": "DevOps Engineer",
-      "start_date": "2023-01",
-      "end_date": "Present",
-      "location": "Remote",
+      "company": "Project Circle & Lohamim 8 (Octopus) Bootcamp",
+      "role": "DevOps Engineer Intern",
+      "start_date": "2026-04",
+      "end_date": "2026-08",
+      "location": "Israel",
       "bullets": [
-        "Built and maintained CI/CD pipelines in GitHub Actions, reducing deployment time by 40%.",
-        "Provisioned AWS infrastructure using Terraform, including IAM roles configured for OIDC-based authentication.",
-        "Containerized services with Docker and deployed to Kubernetes clusters.",
-        "Set up monitoring and alerting with Prometheus and Grafana."
+        "Provisioned highly available AWS and Kubernetes infrastructure using Terraform.",
+        "Automated CI/CD release pipelines via GitHub Actions and GitOps workflows.",
+        "Configured Prometheus and Grafana to monitor system performance, KPIs, and uptime.",
+        "Emulated AWS cloud services locally via LocalStack to test, define, and deploy cloud infrastructure using Terraform."
       ]
     },
     {
-      "company": "Previous Company",
-      "role": "Junior Systems Administrator",
-      "start_date": "2021-06",
-      "end_date": "2022-12",
-      "location": "Remote",
+      "company": "Ort Singalovski",
+      "role": "Private Programming Tutor",
+      "start_date": "2026-01",
+      "end_date": "Present",
+      "location": "Israel",
       "bullets": [
-        "Automated routine infrastructure tasks with Python and Bash scripts.",
-        "Maintained on-call rotation and resolved production incidents.",
-        "Assisted in migrating on-prem services to AWS."
+        "Instructed 20+ students in Python and SQL programming fundamentals.",
+        "Developed and debugged custom Python automation scripts to optimize learning workflows."
+      ]
+    },
+    {
+      "company": "IDF - Egoz Unit",
+      "role": "Combat Soldier (Military Service)",
+      "start_date": "2020-01",
+      "end_date": "2023-03",
+      "location": "Israel",
+      "bullets": [
+        "Served as a combat soldier in high-stakes environments, managing critical incident response under extreme pressure.",
+        "Awarded an Outstanding Reservist Award."
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "name": "Self-Hosted AI Website Generator",
+      "bullets": [
+        "Architected and deployed a local Gitea instance on a Kubernetes cluster to manage internal version control and CI/CD workflows.",
+        "Containerized backend services (FastAPI, Node.js) with Docker and configured Alembic for database migrations.",
+        "Integrated LLM APIs into the backend to power Generative AI features, troubleshooting endpoints for high availability.",
+        "Used Claude Code via the CLI to accelerate infrastructure configuration and backend development."
       ]
     }
   ],
   "education": [
     {
-      "school": "State University",
-      "degree": "B.S. Computer Science",
-      "end_date": "2021-05"
+      "school": "The Open University of Israel",
+      "degree": "B.Sc. Computer Science",
+      "start_date": "2024",
+      "end_date": "Present"
+    },
+    {
+      "school": "Ort Singalovski College",
+      "degree": "Computing and DevOps",
+      "start_date": "2025",
+      "end_date": "2026",
+      "notes": ["Awarded a Certificate of Excellence", "Achieved 2nd place in excellence project competition"]
+    },
+    {
+      "school": "Ohel Shem High School",
+      "degree": "High School Diploma — Specialization: CyberSecurity, Computer Science and Physics",
+      "start_date": "2016",
+      "end_date": "2019"
     }
   ],
   "certifications": [
-    "AWS Certified Solutions Architect – Associate",
-    "Certified Kubernetes Administrator (CKA)"
+    "AWS Certified Solutions Architect – Associate (SAA-C03), 2026-2029",
+    "Certified Kubernetes Administrator (CKA), 2026-2029",
+    "Red Hat Certified System Administrator (RHCSA), 2026-2029"
   ]
 }
