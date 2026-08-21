@@ -1,0 +1,18 @@
+Site Reliability Engineer
+
+We are looking for a Site Reliability Engineer to help scale our cloud infrastructure. You will work closely with development teams to build reliable, automated systems.
+
+Responsibilities:
+- Design and maintain CI/CD pipelines using GitHub Actions.
+- Manage AWS infrastructure using Terraform (Infrastructure as Code).
+- Operate and troubleshoot Kubernetes clusters in production.
+- Build monitoring, alerting, and observability tooling.
+- Automate repetitive operational tasks with Python.
+- Participate in an on-call rotation and drive incident response.
+
+Requirements:
+- Experience with AWS services (IAM, EC2, S3, Lambda).
+- Strong Terraform and IaC experience.
+- Hands-on Kubernetes and Docker experience.
+- Proficiency in Python or similar scripting language.
+- Familiarity with observability tools such as Prometheus and Grafana.

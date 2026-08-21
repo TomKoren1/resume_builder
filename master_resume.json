@@ -1,0 +1,61 @@
+{
+  "name": "Jane Doe",
+  "title": "DevOps / Site Reliability Engineer",
+  "contact": {
+    "email": "jane.doe@example.com",
+    "phone": "+1-555-123-4567",
+    "location": "Remote / USA",
+    "linkedin": "linkedin.com/in/janedoe",
+    "github": "github.com/janedoe"
+  },
+  "summary": "DevOps engineer with experience building CI/CD pipelines, managing Kubernetes clusters, and automating cloud infrastructure with Terraform. Comfortable across AWS, Docker, and observability tooling.",
+  "skills": [
+    "AWS (EC2, S3, IAM, Bedrock, Lambda)",
+    "Terraform",
+    "Kubernetes",
+    "Docker",
+    "GitHub Actions",
+    "Python",
+    "Bash",
+    "Prometheus / Grafana",
+    "LocalStack"
+  ],
+  "experience": [
+    {
+      "company": "Example Corp",
+      "role": "DevOps Engineer",
+      "start_date": "2023-01",
+      "end_date": "Present",
+      "location": "Remote",
+      "bullets": [
+        "Built and maintained CI/CD pipelines in GitHub Actions, reducing deployment time by 40%.",
+        "Provisioned AWS infrastructure using Terraform, including IAM roles configured for OIDC-based authentication.",
+        "Containerized services with Docker and deployed to Kubernetes clusters.",
+        "Set up monitoring and alerting with Prometheus and Grafana."
+      ]
+    },
+    {
+      "company": "Previous Company",
+      "role": "Junior Systems Administrator",
+      "start_date": "2021-06",
+      "end_date": "2022-12",
+      "location": "Remote",
+      "bullets": [
+        "Automated routine infrastructure tasks with Python and Bash scripts.",
+        "Maintained on-call rotation and resolved production incidents.",
+        "Assisted in migrating on-prem services to AWS."
+      ]
+    }
+  ],
+  "education": [
+    {
+      "school": "State University",
+      "degree": "B.S. Computer Science",
+      "end_date": "2021-05"
+    }
+  ],
+  "certifications": [
+    "AWS Certified Solutions Architect – Associate",
+    "Certified Kubernetes Administrator (CKA)"
+  ]
+}

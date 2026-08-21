@@ -26,18 +26,17 @@ Given a master resume (in JSON format) and a specific job description, the syste
 
 ## 4. Current Progress
 *   [x] **AI Parsing Logic:** The AWS Bedrock integration script (`backend/main.py`) has been written and prompts Claude 3.5 Sonnet to output valid, customized JSON based on the master resume and job description. (Not yet run against live Bedrock or covered by tests.)
-*   [ ] Repo is not yet a git repository; `.github/` and `infra/` are empty placeholders.
-*   [ ] No `requirements.txt`, `master_resume.json`, or `job_description.txt` exist yet — these are prerequisites for Phase 1.
-*   [ ] Stray `,gitignore` file (comma, not a leading dot) has no effect — needs to be renamed to `.gitignore` and populated (`__pycache__/`, `.venv/`, `*.pdf`, `tailored_resume.json`, AWS creds, etc.).
+*   [x] **Phase 0 (repo hygiene):** git repo connected to GitHub, `.gitignore`, `requirements.txt`, sample `master_resume.json` / `job_description.txt` in place. See Phase 0 below.
+*   [ ] `.github/` and `infra/` are still empty placeholders — Phase 2/3 work.
 
 ## 5. Tasks for Claude Code (Next Steps)
 Claude, please assist in executing the following phases sequentially:
 
-### Phase 0: Repo Hygiene (prerequisite)
-*   Initialize git (`git init`) and commit the current state.
-*   Fix `.gitignore` (currently a dead `,gitignore` file) and populate it: `__pycache__/`, `*.pyc`, `.venv/`, `*.pdf`, `tailored_resume.json`, `.env`, local AWS credentials.
-*   Add a `requirements.txt` (`boto3`, `jinja2`, `playwright`).
-*   Add a sample `master_resume.json` and `job_description.txt` so `backend/main.py` is actually runnable end-to-end for local testing.
+### Phase 0: Repo Hygiene (prerequisite) — DONE
+*   [x] Git initialized and connected to GitHub (`origin` set, `main` pushed).
+*   [x] `.gitignore` fixed (was a dead `,gitignore` file) and populated: `__pycache__/`, `.venv/`, `*.pdf`, `tailored_resume.json`, `.env`, `.aws/`.
+*   [x] `requirements.txt` added (`boto3`, `jinja2`, `playwright`).
+*   [x] Sample `master_resume.json` (placeholder "Jane Doe" data, defines the schema — replace with your real resume content) and `job_description.txt` (sample SRE posting) added so `backend/main.py` is runnable end-to-end locally.
 
 ### Phase 1: Templating & PDF Generation
 *   Create a simple, professional, single-page `template.html` optimized for print/PDF (using CSS `@page` rules).
