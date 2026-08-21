@@ -27,6 +27,7 @@ Given a master resume (in JSON format) and a specific job description, the syste
 ## 4. Current Progress
 *   [x] **AI Parsing Logic:** The AWS Bedrock integration script (`backend/main.py`) has been written and prompts Claude 3.5 Sonnet to output valid, customized JSON based on the master resume and job description. (Not yet run against live Bedrock or covered by tests.)
 *   [x] **Phase 0 (repo hygiene):** git repo connected to GitHub, `.gitignore`, `requirements.txt`, sample `master_resume.json` / `job_description.txt` in place. See Phase 0 below.
+*   [x] **Phase 1 (templating & PDF):** `template.html` (print-optimized, CSS `@page`) and `render_resume.py` (Jinja2 → Playwright PDF) written. **Not yet locally verified end-to-end** — this dev sandbox's networking couldn't reliably complete the one-time Playwright Chromium browser download (~200MB, kept stalling). Verification deferred to Phase 3, where GitHub Actions runs `playwright install` itself without this constraint.
 *   [ ] `.github/` and `infra/` are still empty placeholders — Phase 2/3 work.
 
 ## 5. Tasks for Claude Code (Next Steps)
@@ -38,10 +39,13 @@ Claude, please assist in executing the following phases sequentially:
 *   [x] `requirements.txt` added (`boto3`, `jinja2`, `playwright`).
 *   [x] Sample `master_resume.json` (placeholder "Jane Doe" data, defines the schema — replace with your real resume content) and `job_description.txt` (sample SRE posting) added so `backend/main.py` is runnable end-to-end locally.
 
-### Phase 1: Templating & PDF Generation
-*   Create a simple, professional, single-page `template.html` optimized for print/PDF (using CSS `@page` rules).
-*   Write a Python script (`render_resume.py`) that uses Jinja2 to map fields from `tailored_resume.json` into `template.html`.
-*   Integrate Playwright into `render_resume.py` to convert the rendered HTML into `output.pdf`.
+### Phase 1: Templating & PDF Generation — DONE (pending local verification)
+*   [x] `template.html`: single-page, print-optimized (CSS `@page` rules), two-column layout for education/certifications/languages, sections for summary/experience/projects/skills matching the `master_resume.json` schema.
+*   [x] `render_resume.py`: loads a resume JSON (defaults to `tailored_resume.json`, falls back to `master_resume.json` if absent) via Jinja2, renders `template.html`, and uses Playwright (sync API) to print it to `output.pdf`.
+*   [ ] **Not yet run successfully in this environment** — Playwright's one-time Chromium download stalled repeatedly over this dev sandbox's slow/restricted network. Real verification is deferred to Phase 3 CI. If you want to sanity-check locally first, run (after `pip install -r requirements.txt && playwright install chromium`):
+    ```
+    python render_resume.py master_resume.json template.html output.pdf
+    ```
 
 ### Phase 2: Infrastructure as Code (Terraform)
 *   Write the Terraform configuration to provision the necessary AWS resources. 

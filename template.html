@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>{{ name }} - Resume</title>
+<style>
+  @page {
+    size: Letter;
+    margin: 0.5in 0.6in;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    color: #1a1a1a;
+    font-size: 10pt;
+    line-height: 1.4;
+    margin: 0;
+  }
+
+  h1, h2, h3 { margin: 0; }
+
+  header {
+    border-bottom: 2px solid #1a1a1a;
+    padding-bottom: 8px;
+    margin-bottom: 12px;
+  }
+
+  header h1 {
+    font-size: 22pt;
+    letter-spacing: 0.5px;
+  }
+
+  header .title {
+    font-size: 12pt;
+    color: #444;
+    margin-top: 2px;
+  }
+
+  header .contact {
+    font-size: 8.5pt;
+    color: #555;
+    margin-top: 6px;
+  }
+
+  header .contact span:not(:last-child)::after {
+    content: " | ";
+    color: #999;
+  }
+
+  section {
+    margin-bottom: 12px;
+  }
+
+  section h2 {
+    font-size: 11pt;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #1a1a1a;
+    border-bottom: 1px solid #ccc;
+    padding-bottom: 3px;
+    margin-bottom: 6px;
+  }
+
+  .summary {
+    font-size: 9.5pt;
+    color: #333;
+  }
+
+  .skills-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .skills-list li {
+    margin-bottom: 3px;
+    font-size: 9.5pt;
+  }
+
+  .skills-list li strong {
+    color: #1a1a1a;
+  }
+
+  .entry {
+    margin-bottom: 10px;
+  }
+
+  .entry:last-child {
+    margin-bottom: 0;
+  }
+
+  .entry-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+
+  .entry-header .role {
+    font-weight: bold;
+    font-size: 10.5pt;
+  }
+
+  .entry-header .dates {
+    font-size: 9pt;
+    color: #555;
+    white-space: nowrap;
+  }
+
+  .entry-sub {
+    display: flex;
+    justify-content: space-between;
+    font-size: 9.5pt;
+    color: #444;
+    font-style: italic;
+    margin-bottom: 3px;
+  }
+
+  .entry ul {
+    margin: 0;
+    padding-left: 16px;
+  }
+
+  .entry ul li {
+    margin-bottom: 2px;
+    font-size: 9.5pt;
+  }
+
+  .two-col {
+    display: flex;
+    gap: 24px;
+  }
+
+  .two-col .col {
+    flex: 1;
+  }
+
+  .cert-list, .lang-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .cert-list li, .lang-list li {
+    font-size: 9.5pt;
+    margin-bottom: 3px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>{{ name }}</h1>
+  <div class="title">{{ title }}</div>
+  <div class="contact">
+    {% if contact.location %}<span>{{ contact.location }}</span>{% endif %}
+    {% if contact.email %}<span>{{ contact.email }}</span>{% endif %}
+    {% if contact.phone %}<span>{{ contact.phone }}</span>{% endif %}
+    {% if contact.linkedin %}<span>{{ contact.linkedin }}</span>{% endif %}
+    {% if contact.github %}<span>{{ contact.github }}</span>{% endif %}
+  </div>
+</header>
+
+{% if summary %}
+<section>
+  <h2>Summary</h2>
+  <p class="summary">{{ summary }}</p>
+</section>
+{% endif %}
+
+{% if experience %}
+<section>
+  <h2>Experience</h2>
+  {% for job in experience %}
+  <div class="entry">
+    <div class="entry-header">
+      <span class="role">{{ job.role }}</span>
+      <span class="dates">{{ job.start_date }} - {{ job.end_date }}</span>
+    </div>
+    <div class="entry-sub">
+      <span>{{ job.company }}</span>
+      <span>{{ job.location }}</span>
+    </div>
+    {% if job.bullets %}
+    <ul>
+      {% for bullet in job.bullets %}
+      <li>{{ bullet }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+  {% endfor %}
+</section>
+{% endif %}
+
+{% if projects %}
+<section>
+  <h2>Technical Projects</h2>
+  {% for project in projects %}
+  <div class="entry">
+    <div class="entry-header">
+      <span class="role">{{ project.name }}</span>
+    </div>
+    {% if project.bullets %}
+    <ul>
+      {% for bullet in project.bullets %}
+      <li>{{ bullet }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+  {% endfor %}
+</section>
+{% endif %}
+
+{% if skills %}
+<section>
+  <h2>Skills</h2>
+  <ul class="skills-list">
+    {% for skill in skills %}
+    <li>
+      {% if ':' in skill %}
+      <strong>{{ skill.split(':')[0] }}:</strong>{{ skill.split(':', 1)[1] }}
+      {% else %}
+      {{ skill }}
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<div class="two-col">
+  <div class="col">
+    {% if education %}
+    <section>
+      <h2>Education</h2>
+      {% for edu in education %}
+      <div class="entry">
+        <div class="entry-header">
+          <span class="role">{{ edu.school }}</span>
+          <span class="dates">{{ edu.start_date }} - {{ edu.end_date }}</span>
+        </div>
+        <div class="entry-sub"><span>{{ edu.degree }}</span></div>
+        {% if edu.notes %}
+        <ul>
+          {% for note in edu.notes %}
+          <li>{{ note }}</li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </section>
+    {% endif %}
+  </div>
+
+  <div class="col">
+    {% if certifications %}
+    <section>
+      <h2>Certifications</h2>
+      <ul class="cert-list">
+        {% for cert in certifications %}
+        <li>{{ cert }}</li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+
+    {% if languages %}
+    <section>
+      <h2>Languages</h2>
+      <ul class="lang-list">
+        {% for lang in languages %}
+        <li>{{ lang }}</li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+  </div>
+</div>
+
+</body>
+</html>
