@@ -25,10 +25,10 @@ Given a master resume (in JSON format) and a specific job description, the syste
 6.  **Pipeline Orchestration:** This entire workflow runs inside a Dockerized GitHub Actions runner, leveraging an IAM role via OIDC to authenticate with AWS Bedrock without long-lived credentials.
 
 ## 4. Current Progress
-*   [x] **AI Parsing Logic:** The AWS Bedrock integration script (`backend/main.py`) has been written and prompts Claude 3.5 Sonnet to output valid, customized JSON based on the master resume and job description. (Not yet run against live Bedrock or covered by tests.)
+*   [x] **AI Parsing Logic:** `backend/main.py` prompts Claude to output valid, customized JSON based on the master resume and job description. Verified end-to-end against the live Anthropic API (Bedrock itself is currently quota-throttled on this account, see Phase 3 below) — found and fixed a real bug: the model wraps its JSON output in a ` ```json ` markdown fence despite the system prompt forbidding it, which broke `json.loads()`. Now stripped before parsing.
 *   [x] **Phase 0 (repo hygiene):** git repo connected to GitHub, `.gitignore`, `requirements.txt`, sample `master_resume.json` / `job_description.txt` in place. See Phase 0 below.
-*   [x] **Phase 1 (templating & PDF):** `template.html` (print-optimized, CSS `@page`) and `render_resume.py` (Jinja2 → Playwright PDF) written. **Not yet locally verified end-to-end** — this dev sandbox's networking couldn't reliably complete the one-time Playwright Chromium browser download (~200MB, kept stalling). Verification deferred to Phase 3, where GitHub Actions runs `playwright install` itself without this constraint.
-*   [ ] `.github/` and `infra/` are still empty placeholders — Phase 2/3 work.
+*   [x] **Phase 1 (templating & PDF):** `template.html` (print-optimized, CSS `@page`) and `render_resume.py` (Jinja2 → Playwright PDF) written and **now verified end-to-end locally**. The Playwright "headless shell" download reliably stalled on this sandbox's network; fixed by forcing `channel="chromium"` in `render_resume.py` to use the full Chromium build (which does download successfully) instead.
+*   [x] Phase 2 (Terraform) applied to real AWS. Phase 3 (GitHub Actions) written and wired up — OIDC auth confirmed working end-to-end; blocked only on a Bedrock account-level daily token quota (see below).
 
 ## 5. Tasks for Claude Code (Next Steps)
 Claude, please assist in executing the following phases sequentially:
@@ -39,10 +39,9 @@ Claude, please assist in executing the following phases sequentially:
 *   [x] `requirements.txt` added (`boto3`, `jinja2`, `playwright`).
 *   [x] Sample `master_resume.json` (placeholder "Jane Doe" data, defines the schema — replace with your real resume content) and `job_description.txt` (sample SRE posting) added so `backend/main.py` is runnable end-to-end locally.
 
-### Phase 1: Templating & PDF Generation — DONE (pending local verification)
+### Phase 1: Templating & PDF Generation — DONE (verified locally)
 *   [x] `template.html`: single-page, print-optimized (CSS `@page` rules), two-column layout for education/certifications/languages, sections for summary/experience/projects/skills matching the `master_resume.json` schema.
-*   [x] `render_resume.py`: loads a resume JSON (defaults to `tailored_resume.json`, falls back to `master_resume.json` if absent) via Jinja2, renders `template.html`, and uses Playwright (sync API) to print it to `output.pdf`.
-*   [ ] **Not yet run successfully in this environment** — Playwright's one-time Chromium download stalled repeatedly over this dev sandbox's slow/restricted network. Real verification is deferred to Phase 3 CI. If you want to sanity-check locally first, run (after `pip install -r requirements.txt && playwright install chromium`):
+*   [x] `render_resume.py`: loads a resume JSON (defaults to `tailored_resume.json`, falls back to `master_resume.json` if absent) via Jinja2, renders `template.html`, and uses Playwright (sync API, `channel="chromium"`) to print it to `output.pdf`. Confirmed working end-to-end with a real tailored resume.
     ```
     python render_resume.py master_resume.json template.html output.pdf
     ```
@@ -55,12 +54,12 @@ Claude, please assist in executing the following phases sequentially:
 *   [x] `terraform init`/`validate` pass locally (root module, no LocalStack-specific code needed — run via `tflocal` instead of `terraform` to redirect to LocalStack, per `tflocal`'s own transparent endpoint-rewriting).
 *   [ ] Not yet run against LocalStack or real AWS (`plan`/`apply`) — needs your AWS account ID and confirmed Bedrock model access first.
 
-### Phase 3: CI/CD Pipeline (GitHub Actions) — DONE (pending live run)
+### Phase 3: CI/CD Pipeline (GitHub Actions) — DONE (blocked on Bedrock quota)
 *   [x] `.github/workflows/generate-resume.yml`: triggers on push to `main` when `job_description.txt` changes (plus manual `workflow_dispatch`), checks out code, sets up Python 3.11, installs `requirements.txt`, installs Playwright's Chromium via `playwright install --with-deps chromium`, assumes the Phase 2 OIDC role via `aws-actions/configure-aws-credentials`, runs `backend/main.py` then `render_resume.py`, and uploads `output.pdf` as a workflow artifact.
-*   [ ] **Not yet run** — needs two things first:
-    1.  `terraform apply` (Phase 2) so the IAM role actually exists.
-    2.  A repo secret `AWS_ROLE_ARN` set to the `github_actions_role_arn` Terraform output.
-    Once both are in place, push a change to `job_description.txt` (or trigger manually) to verify the pipeline end-to-end — this is also the first real verification of Phases 1 and 2.
+*   [x] `terraform apply`'d (Phase 2) — IAM role, OIDC trust, Bedrock policy all live in AWS.
+*   [x] `AWS_ROLE_ARN` repo secret set. OIDC handshake **confirmed working** — initially failed because this repo's GitHub OIDC `sub` claim includes immutable owner/repo IDs (`repo:org@id/repo@id:ref:...`, GitHub's anti-repojacking behavior for renamed/transferred repos), which the exact-match trust policy rejected. Fixed in `infra/oidc.tf` by wildcarding the `sub` condition around the optional `@<id>` suffix.
+*   [x] Model switched from `claude-3-5-sonnet-20241022-v2:0` → `claude-sonnet-5` → **`claude-sonnet-4-5-20250929-v1:0`** (current). Sonnet 5 returned a genuine `AccessDeniedException` (not enabled for this account); Sonnet 4.5 is accessible.
+*   [ ] **Blocked**: the account is hitting `ThrottlingException: Too many tokens per day` on Bedrock — likely a low provisional daily quota on this account (shared with other projects) compounded by manual CLI testing during debugging. Not a code/infra bug — confirmed by testing the same tailoring logic directly against the Anthropic API (bypassing Bedrock entirely), which worked and surfaced a real bug (see below) now fixed in `backend/main.py`. Next step once the quota resets or is increased: re-run the workflow to get the actual first green CI run.
 
 ## 6. Coding Guidelines
 *   Keep Python scripts modular and well-documented.
