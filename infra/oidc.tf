@@ -36,7 +36,11 @@ resource "aws_iam_role" "github_actions_bedrock" {
             "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
           }
           StringLike = {
-            "token.actions.githubusercontent.com:sub" = "repo:${var.github_org}/${var.github_repo}:ref:refs/heads/${var.github_branch}"
+            # GitHub appends immutable owner/repo IDs to `sub` (e.g.
+            # "repo:org@12345/repo@67890:ref:...") for repositories that have
+            # been renamed or transferred, as anti-repojacking protection.
+            # Wildcards absorb that optional "@<id>" suffix either way.
+            "token.actions.githubusercontent.com:sub" = "repo:${var.github_org}*/${var.github_repo}*:ref:refs/heads/${var.github_branch}"
           }
         }
       }
