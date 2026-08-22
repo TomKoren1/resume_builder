@@ -55,16 +55,12 @@ Claude, please assist in executing the following phases sequentially:
 *   [x] `terraform init`/`validate` pass locally (root module, no LocalStack-specific code needed — run via `tflocal` instead of `terraform` to redirect to LocalStack, per `tflocal`'s own transparent endpoint-rewriting).
 *   [ ] Not yet run against LocalStack or real AWS (`plan`/`apply`) — needs your AWS account ID and confirmed Bedrock model access first.
 
-### Phase 3: CI/CD Pipeline (GitHub Actions)
-*   Create a `.github/workflows/generate-resume.yml` file.
-*   **Workflow Steps:**
-    *   Trigger on push to the `main` branch when `job_description.txt` changes.
-    *   Checkout code.
-    *   Set up Python and install requirements (`boto3`, `jinja2`, `playwright`).
-    *   Install Playwright browsers.
-    *   Configure AWS Credentials using the `aws-actions/configure-aws-credentials` action and the OIDC role from Phase 2.
-    *   Execute `bedrock_generator.py` followed by `render_resume.py`.
-    *   Upload the resulting `output.pdf` as a workflow artifact.
+### Phase 3: CI/CD Pipeline (GitHub Actions) — DONE (pending live run)
+*   [x] `.github/workflows/generate-resume.yml`: triggers on push to `main` when `job_description.txt` changes (plus manual `workflow_dispatch`), checks out code, sets up Python 3.11, installs `requirements.txt`, installs Playwright's Chromium via `playwright install --with-deps chromium`, assumes the Phase 2 OIDC role via `aws-actions/configure-aws-credentials`, runs `backend/main.py` then `render_resume.py`, and uploads `output.pdf` as a workflow artifact.
+*   [ ] **Not yet run** — needs two things first:
+    1.  `terraform apply` (Phase 2) so the IAM role actually exists.
+    2.  A repo secret `AWS_ROLE_ARN` set to the `github_actions_role_arn` Terraform output.
+    Once both are in place, push a change to `job_description.txt` (or trigger manually) to verify the pipeline end-to-end — this is also the first real verification of Phases 1 and 2.
 
 ## 6. Coding Guidelines
 *   Keep Python scripts modular and well-documented.
