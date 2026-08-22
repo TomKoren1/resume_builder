@@ -17,7 +17,7 @@ def render_resume(resume_json_path, template_path, output_pdf_path):
     html_content = template.render(**resume_data)
 
     with sync_playwright() as p:
-        browser = p.chromium.launch()
+        browser = p.chromium.launch(channel="chromium")
         page = browser.new_page()
         page.set_content(html_content, wait_until="networkidle")
         page.pdf(

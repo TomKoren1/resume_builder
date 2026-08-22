@@ -52,7 +52,14 @@ def tailor_resume(master_resume_path, job_description_path, output_path):
         
         # Extract the raw text from the response payload
         response_text = response['output']['message']['content'][0]['text']
-        
+
+        # The model sometimes wraps its output in a markdown code fence
+        # despite the system prompt forbidding it - strip it if present.
+        response_text = response_text.strip()
+        if response_text.startswith("```"):
+            response_text = response_text.split("\n", 1)[1]
+            response_text = response_text.rsplit("```", 1)[0].strip()
+
         # Parse it back to a Python dictionary to verify it is valid, unbroken JSON
         tailored_resume_dict = json.loads(response_text)
         
