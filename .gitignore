@@ -6,3 +6,10 @@ venv/
 tailored_resume.json
 .env
 .aws/
+
+# Terraform
+infra/.terraform/
+infra/*.tfstate
+infra/*.tfstate.*
+infra/terraform.tfvars
+infra/*.tfplan

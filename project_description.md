@@ -47,13 +47,13 @@ Claude, please assist in executing the following phases sequentially:
     python render_resume.py master_resume.json template.html output.pdf
     ```
 
-### Phase 2: Infrastructure as Code (Terraform)
-*   Write the Terraform configuration to provision the necessary AWS resources. 
-*   **Requirements:**
-    *   An IAM OIDC Identity Provider for GitHub Actions.
-    *   An IAM Role assumable by the GitHub Actions repository.
-    *   A least-privilege IAM Policy attached to the role, granting ONLY `bedrock:InvokeModel` for the specific Claude 3.5 Sonnet model ARN.
-*   Ensure the Terraform code is compatible with testing against LocalStack (`tflocal`) before deploying to live AWS.
+### Phase 2: Infrastructure as Code (Terraform) — DONE
+*   [x] `infra/oidc.tf`: GitHub Actions OIDC identity provider (`token.actions.githubusercontent.com`). Thumbprint is derived at plan time via the `tls_certificate` data source rather than hardcoded, so it can't go stale if GitHub rotates certs.
+*   [x] `infra/oidc.tf`: IAM role (`github-actions-resume-builder-bedrock`) assumable only via `sts:AssumeRoleWithWebIdentity` from the configured `github_org/github_repo` on `github_branch` (defaults to `main`).
+*   [x] `infra/iam.tf`: least-privilege inline policy granting only `bedrock:InvokeModel`, scoped to the exact ARNs required — both the cross-region inference-profile ARN *and* the underlying foundation-model ARN in each region the profile can route to (see Open Questions below, now resolved).
+*   [x] `infra/variables.tf`, `outputs.tf`, `terraform.tfvars.example` for account/repo/model config.
+*   [x] `terraform init`/`validate` pass locally (root module, no LocalStack-specific code needed — run via `tflocal` instead of `terraform` to redirect to LocalStack, per `tflocal`'s own transparent endpoint-rewriting).
+*   [ ] Not yet run against LocalStack or real AWS (`plan`/`apply`) — needs your AWS account ID and confirmed Bedrock model access first.
 
 ### Phase 3: CI/CD Pipeline (GitHub Actions)
 *   Create a `.github/workflows/generate-resume.yml` file.
@@ -72,7 +72,7 @@ Claude, please assist in executing the following phases sequentially:
 *   Write clean, easily maintainable HTML/CSS that aligns with standard resume formatting practices.
 
 ## 7. Open Questions / Risks
-*   **Model availability & ARN:** `us.anthropic.claude-3-5-sonnet-20241022-v2:0` is a cross-region inference profile ID, not a raw model ARN — the Phase 2 IAM policy needs to scope to whichever ARN form Bedrock actually requires for `bedrock:InvokeModel` on this ID (inference profile ARN vs. foundation-model ARN vs. wildcard-on-region). Verify before locking down the policy.
+*   **Model availability & ARN — RESOLVED:** `us.anthropic.claude-3-5-sonnet-20241022-v2:0` is a cross-region inference profile ID. The Phase 2 policy (`infra/iam.tf`) now grants `bedrock:InvokeModel` on both the inference-profile ARN and the underlying foundation-model ARN in each of `us-east-1`/`us-east-2`/`us-west-2` (the profile's routing regions) — Bedrock requires permission on both halves or invocation fails with `AccessDeniedException` even though the policy "looks" like it covers the model.
 *   **Bedrock region/access:** Confirm the AWS account has Bedrock model access enabled for this model in `us-east-1` before wiring CI — this is a manual console step, not something Terraform provisions.
 *   **Master resume format:** No schema is defined yet for `master_resume.json`; Phase 0 should pin one down so the Jinja2 template (Phase 1) and the Bedrock system prompt agree on field names.
 *   **Cost control:** High-volume applications means repeated Bedrock invocations — consider a rough per-run cost estimate and/or a guard against accidental workflow loops (e.g. the trigger path only watching `job_description.txt`, not `main_resume.json`, is a reasonable start but worth double-checking in Phase 3).
