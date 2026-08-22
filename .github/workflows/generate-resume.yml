@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - "job_description.txt"
+      - "app/job_description.txt"
   workflow_dispatch: {}
 
 permissions:
@@ -39,10 +39,10 @@ jobs:
         run: python backend/main.py
 
       - name: Render resume PDF
-        run: python render_resume.py tailored_resume.json template.html output.pdf
+        run: python app/render_resume.py app/tailored_resume.json app/template.html app/output.pdf
 
       - name: Upload resume PDF artifact
         uses: actions/upload-artifact@v4
         with:
           name: resume-pdf
-          path: output.pdf
+          path: app/output.pdf

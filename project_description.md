@@ -1,5 +1,7 @@
 # Project Specification: Automated DevOps Resume Generator
 
+> This is the detailed build log / phase history. For the current repo layout and how to run things, see [README.md](README.md). File paths below reflect the state at the time each phase was written and may not match the current layout in every place (e.g. `app/` was introduced later — see README for the up-to-date structure).
+
 ## 1. Project Overview
 This project is an automated, docs-as-code pipeline designed to dynamically generate tailored resumes for DevOps and Site Reliability Engineering (SRE) job applications. 
 

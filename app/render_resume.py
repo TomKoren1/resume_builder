@@ -32,12 +32,12 @@ def render_resume(resume_json_path, template_path, output_pdf_path):
 
 
 if __name__ == "__main__":
-    resume_json = sys.argv[1] if len(sys.argv) > 1 else "tailored_resume.json"
-    template_file = sys.argv[2] if len(sys.argv) > 2 else "template.html"
-    output_pdf = sys.argv[3] if len(sys.argv) > 3 else "output.pdf"
+    resume_json = sys.argv[1] if len(sys.argv) > 1 else "app/tailored_resume.json"
+    template_file = sys.argv[2] if len(sys.argv) > 2 else "app/template.html"
+    output_pdf = sys.argv[3] if len(sys.argv) > 3 else "app/output.pdf"
 
     if not Path(resume_json).exists():
         print(f"Error: {resume_json} not found. Falling back to master_resume.json.")
-        resume_json = "master_resume.json"
+        resume_json = "app/master_resume.json"
 
     render_resume(resume_json, template_file, output_pdf)

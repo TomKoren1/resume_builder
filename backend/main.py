@@ -78,5 +78,4 @@ def tailor_resume(master_resume_path, job_description_path, output_path):
         sys.exit(1)
 
 if __name__ == "__main__":
-    # Example execution
-    tailor_resume('master_resume.json', 'job_description.txt', 'tailored_resume.json')
+    tailor_resume('app/master_resume.json', 'app/job_description.txt', 'app/tailored_resume.json')
