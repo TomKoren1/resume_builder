@@ -28,7 +28,7 @@ variable "github_branch" {
 variable "bedrock_model_id" {
   description = "Bedrock cross-region inference profile ID invoked by backend/main.py."
   type        = string
-  default     = "us.anthropic.claude-sonnet-5"
+  default     = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
 }
 
 variable "bedrock_underlying_regions" {

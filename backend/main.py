@@ -7,8 +7,8 @@ def tailor_resume(master_resume_path, job_description_path, output_path):
     # When deployed to GitHub Actions, boto3 will automatically pick up the assumed OIDC role
     bedrock_runtime = boto3.client('bedrock-runtime', region_name='us-east-1')
     
-    # Using Claude Sonnet 5 for high reasoning capabilities
-    model_id = "us.anthropic.claude-sonnet-5"
+    # Claude Sonnet 5 isn't enabled for this Bedrock account; Sonnet 4.5 is.
+    model_id = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
     
     # Load your inputs
     with open(master_resume_path, 'r', encoding='utf-8') as f:
