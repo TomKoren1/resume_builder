@@ -7,6 +7,10 @@ tailored_resume.json
 .env
 .aws/
 
+# Real contact info for local runs (see resume_contact.py). Never commit
+# this - master_resume.json only holds placeholder values.
+app/contact_info.local.json
+
 # Terraform
 infra/.terraform/
 infra/*.tfstate

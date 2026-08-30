@@ -36,9 +36,15 @@ jobs:
           aws-region: us-east-1
 
       - name: Tailor resume via Bedrock
+        env:
+          RESUME_EMAIL: ${{ secrets.RESUME_EMAIL }}
+          RESUME_PHONE: ${{ secrets.RESUME_PHONE }}
         run: python backend/main.py
 
       - name: Render resume PDF
+        env:
+          RESUME_EMAIL: ${{ secrets.RESUME_EMAIL }}
+          RESUME_PHONE: ${{ secrets.RESUME_PHONE }}
         run: python app/render_resume.py app/tailored_resume.json app/template.html app/output.pdf
 
       - name: Upload resume PDF artifact

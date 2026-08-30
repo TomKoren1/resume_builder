@@ -1,6 +1,11 @@
 import boto3
 import json
 import sys
+from pathlib import Path
+
+# Make the repo-root resume_contact module importable regardless of cwd.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from resume_contact import apply_contact_overrides
 
 def tailor_resume(master_resume_path, job_description_path, output_path):
     # Initialize the Bedrock Runtime client
@@ -10,7 +15,9 @@ def tailor_resume(master_resume_path, job_description_path, output_path):
     # Claude Sonnet 5 isn't enabled for this Bedrock account; Sonnet 4.5 is.
     model_id = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
     
-    # Load your inputs
+    # Load your inputs. master_resume.json only holds placeholder contact
+    # info (real email/phone are merged in below, after tailoring, from
+    # resume_contact.py) - the model doesn't need real PII to tailor bullets.
     with open(master_resume_path, 'r', encoding='utf-8') as f:
         master_resume = f.read()
         
@@ -62,7 +69,12 @@ def tailor_resume(master_resume_path, job_description_path, output_path):
 
         # Parse it back to a Python dictionary to verify it is valid, unbroken JSON
         tailored_resume_dict = json.loads(response_text)
-        
+
+        # Merge in real contact info (env var / gitignored local file) now
+        # that we're past the model call, so the placeholder in
+        # master_resume.json never has to be the real thing.
+        apply_contact_overrides(tailored_resume_dict)
+
         # Save the tailored JSON to disk, ready for Jinja2 processing
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(tailored_resume_dict, f, indent=4)

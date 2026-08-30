@@ -5,6 +5,10 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 from playwright.sync_api import sync_playwright
 
+# Make the repo-root resume_contact module importable regardless of cwd.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from resume_contact import load_resume_json
+
 
 def validate_resume_data(resume_data):
     """Minimal required-field check on tailored/master resume JSON.
@@ -42,8 +46,10 @@ def validate_resume_data(resume_data):
 def render_resume(resume_json_path, template_path, output_pdf_path):
     template_path = Path(template_path)
 
-    with open(resume_json_path, "r", encoding="utf-8") as f:
-        resume_data = json.load(f)
+    # Merges in real email/phone from the environment or a gitignored local
+    # file (see resume_contact.py); the committed JSON only ever holds
+    # placeholders.
+    resume_data = load_resume_json(resume_json_path)
 
     validate_resume_data(resume_data)
 

@@ -28,17 +28,38 @@ app/master_resume.json   ─┘        (Bedrock)         (tailored JSON)        
 
 | Path | Purpose |
 |---|---|
-| `app/` | The resume itself: `master_resume.json` (source data), `job_description.txt` (target posting), `template.html` (print layout), `render_resume.py` (JSON → PDF). |
+| `app/` | The resume itself: `master_resume.json` (source data — placeholders only, see below), `job_description.txt` (target posting), `template.html` (print layout), `render_resume.py` (JSON → PDF). |
 | `backend/main.py` | Calls AWS Bedrock to tailor the master resume to the job description. |
+| `resume_contact.py` | Merges real contact info (email/phone) in at runtime — see below. |
 | `infra/` | Terraform for the AWS side: GitHub OIDC provider, an IAM role scoped to `bedrock:InvokeModel`, trusted only from this repo's CI. |
 | `.github/workflows/` | The CI pipeline that runs the whole thing end to end. |
 | `project_description.md` | Detailed build log / phase-by-phase project status. |
+
+## Contact info
+
+`app/master_resume.json` is committed and meant to be safe to make public,
+so it only ever holds placeholder email/phone. The real values are merged
+in at runtime by `resume_contact.py`, from either:
+
+- **Local runs:** copy `app/contact_info.local.json.example` to
+  `app/contact_info.local.json` and fill in your real email/phone. That
+  file is gitignored and never committed.
+- **CI:** set repo secrets `RESUME_EMAIL` and `RESUME_PHONE`
+  (Settings → Secrets and variables → Actions); the workflow passes them
+  through as environment variables.
+
+Neither is required — with no override present, the pipeline still runs
+end to end using the placeholder values. LinkedIn/GitHub handles are left
+as real values directly in `master_resume.json`, since a resume is meant
+to surface those (unlike a phone number, they're not something you'd want
+to keep off a public copy).
 
 ## Running it locally
 
 ```bash
 pip install -r requirements.txt
 playwright install chromium
+cp app/contact_info.local.json.example app/contact_info.local.json  # then fill in real info
 
 # 1. Tailor the resume via Bedrock (needs AWS credentials with bedrock:InvokeModel)
 python backend/main.py
