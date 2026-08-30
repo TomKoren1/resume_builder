@@ -39,7 +39,7 @@ Claude, please assist in executing the following phases sequentially:
 *   [x] Git initialized and connected to GitHub (`origin` set, `main` pushed).
 *   [x] `.gitignore` fixed (was a dead `,gitignore` file) and populated: `__pycache__/`, `.venv/`, `*.pdf`, `tailored_resume.json`, `.env`, `.aws/`.
 *   [x] `requirements.txt` added (`boto3`, `jinja2`, `playwright`).
-*   [x] Sample `master_resume.json` (placeholder "Jane Doe" data, defines the schema — replace with your real resume content) and `job_description.txt` (sample SRE posting) added so `backend/main.py` is runnable end-to-end locally.
+*   [x] `master_resume.json` (real resume content, defines the schema) and `job_description.txt` (sample SRE posting) added so `backend/main.py` is runnable end-to-end locally.
 
 ### Phase 1: Templating & PDF Generation — DONE (verified locally)
 *   [x] `template.html`: single-page, print-optimized (CSS `@page` rules), two-column layout for education/certifications/languages, sections for summary/experience/projects/skills matching the `master_resume.json` schema.

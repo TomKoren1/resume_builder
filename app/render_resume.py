@@ -6,11 +6,46 @@ from jinja2 import Environment, FileSystemLoader
 from playwright.sync_api import sync_playwright
 
 
+def validate_resume_data(resume_data):
+    """Minimal required-field check on tailored/master resume JSON.
+
+    Jinja2 silently renders missing variables as blank instead of erroring,
+    so a malformed or incomplete Bedrock response (missing keys, empty
+    experience, etc.) would otherwise produce a PDF that looks "successful"
+    but is broken. Fail loudly here instead.
+    """
+    required_top_level = ["name", "title", "contact", "summary", "experience"]
+    missing = [
+        field for field in required_top_level
+        if not resume_data.get(field)
+    ]
+    if missing:
+        raise ValueError(
+            f"Resume JSON is missing required field(s): {', '.join(missing)}"
+        )
+
+    contact = resume_data.get("contact")
+    if not isinstance(contact, dict) or not contact.get("email"):
+        raise ValueError("Resume JSON 'contact' must include at least an 'email'")
+
+    experience = resume_data.get("experience")
+    if not isinstance(experience, list) or len(experience) == 0:
+        raise ValueError("Resume JSON 'experience' must be a non-empty list")
+
+    for i, job in enumerate(experience):
+        if not isinstance(job, dict) or not job.get("role") or not job.get("company"):
+            raise ValueError(
+                f"Resume JSON experience[{i}] is missing 'role' or 'company'"
+            )
+
+
 def render_resume(resume_json_path, template_path, output_pdf_path):
     template_path = Path(template_path)
 
     with open(resume_json_path, "r", encoding="utf-8") as f:
         resume_data = json.load(f)
+
+    validate_resume_data(resume_data)
 
     env = Environment(loader=FileSystemLoader(str(template_path.parent)))
     template = env.get_template(template_path.name)
@@ -40,4 +75,8 @@ if __name__ == "__main__":
         print(f"Error: {resume_json} not found. Falling back to master_resume.json.")
         resume_json = "app/master_resume.json"
 
-    render_resume(resume_json, template_file, output_pdf)
+    try:
+        render_resume(resume_json, template_file, output_pdf)
+    except ValueError as e:
+        print(f"Error: invalid resume data in {resume_json}: {e}")
+        sys.exit(1)
