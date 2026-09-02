@@ -16,7 +16,10 @@ app/master_resume.json   ─┘        (Bedrock)         (tailored JSON)        
 
 1. `backend/main.py` sends the master resume and job description to a
    Claude model on AWS Bedrock (via the Converse API) and gets back a
-   tailored resume as strict JSON.
+   tailored resume as strict JSON. If the Bedrock call fails for any reason
+   (e.g. account-level quota throttling), it automatically falls back to
+   calling the same model directly through the Anthropic API, using an
+   `ANTHROPIC_API_KEY` secret — see below.
 2. `app/render_resume.py` renders that JSON into `app/template.html` with
    Jinja2, then uses Playwright (headless Chromium) to print it to a PDF.
 3. A GitHub Actions workflow runs both steps automatically whenever
@@ -53,6 +56,22 @@ end to end using the placeholder values. LinkedIn/GitHub handles are left
 as real values directly in `master_resume.json`, since a resume is meant
 to surface those (unlike a phone number, they're not something you'd want
 to keep off a public copy).
+
+## Bedrock fallback (Anthropic API)
+
+`backend/main.py` calls Bedrock first. If that call raises a `boto3`/AWS
+error (throttling, access denied, no credentials, etc.), it automatically
+retries the same tailoring request against the direct Anthropic API instead,
+using the `anthropic` Python SDK:
+
+- **Local runs:** `export ANTHROPIC_API_KEY=sk-ant-...` (or set it in your
+  shell profile). Never commit this key.
+- **CI:** set a repo secret named `ANTHROPIC_API_KEY`
+  (Settings → Secrets and variables → Actions). The workflow passes it
+  through as an environment variable to the tailoring step only.
+
+If Bedrock fails and `ANTHROPIC_API_KEY` isn't set, the script exits with
+an error explaining that Plan B needs the key.
 
 ## Running it locally
 

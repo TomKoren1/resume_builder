@@ -1,13 +1,30 @@
+import io
 import json
 import sys
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
 from playwright.sync_api import sync_playwright
+from pypdf import PdfReader
 
 # Make the repo-root resume_contact module importable regardless of cwd.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from resume_contact import load_resume_json
+
+# Must match the @page rule in template.html (Letter, 0.5in top/bottom,
+# 0.6in left/right margins) - used to figure out how much the content
+# needs to be scaled down to fit on a single page.
+PAGE_WIDTH_IN = 8.5
+PAGE_HEIGHT_IN = 11
+MARGIN_TOP_BOTTOM_IN = 0.5 * 2
+MARGIN_LEFT_RIGHT_IN = 0.6 * 2
+PX_PER_IN = 96
+CONTENT_WIDTH_PX = round((PAGE_WIDTH_IN - MARGIN_LEFT_RIGHT_IN) * PX_PER_IN)
+CONTENT_HEIGHT_PX = round((PAGE_HEIGHT_IN - MARGIN_TOP_BOTTOM_IN) * PX_PER_IN)
+
+# Playwright's page.pdf(scale=...) floor; below this the text becomes too
+# small to be a usable resume, so we'd rather fail loudly than ship it.
+MIN_PRINT_SCALE = 0.75
 
 
 def validate_resume_data(resume_data):
@@ -59,16 +76,37 @@ def render_resume(resume_json_path, template_path, output_pdf_path):
 
     with sync_playwright() as p:
         browser = p.chromium.launch(channel="chromium")
-        page = browser.new_page()
+        page = browser.new_page(viewport={"width": CONTENT_WIDTH_PX, "height": 100})
         page.set_content(html_content, wait_until="networkidle")
-        page.pdf(
-            path=str(output_pdf_path),
+
+        # Measure the natural (unscaled) content height at the resume's
+        # actual printable width, so we know up front whether it'll fit on
+        # one Letter page or needs to be shrunk down to fit.
+        content_height_px = page.evaluate("document.body.scrollHeight")
+        scale = 1.0
+        if content_height_px > CONTENT_HEIGHT_PX:
+            scale = max(MIN_PRINT_SCALE, CONTENT_HEIGHT_PX / content_height_px)
+
+        pdf_bytes = page.pdf(
             format="Letter",
             print_background=True,
             prefer_css_page_size=True,
+            scale=scale,
         )
         browser.close()
 
+    page_count = len(PdfReader(io.BytesIO(pdf_bytes)).pages)
+    if page_count > 1:
+        raise ValueError(
+            f"Rendered resume is {page_count} pages even at print scale "
+            f"{scale:.2f} (floor is {MIN_PRINT_SCALE}). Trim content in the "
+            f"resume JSON so it fits on a single page."
+        )
+
+    Path(output_pdf_path).write_bytes(pdf_bytes)
+
+    if scale < 1.0:
+        print(f"Note: shrunk to {scale:.0%} print scale to fit on one page.")
     print(f"Success! Resume PDF saved to {output_pdf_path}")
 
 

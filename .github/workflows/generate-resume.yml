@@ -35,10 +35,11 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: us-east-1
 
-      - name: Tailor resume via Bedrock
+      - name: Tailor resume (Bedrock, falls back to Anthropic API)
         env:
           RESUME_EMAIL: ${{ secrets.RESUME_EMAIL }}
           RESUME_PHONE: ${{ secrets.RESUME_PHONE }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: python backend/main.py
 
       - name: Render resume PDF
