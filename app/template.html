@@ -21,6 +21,11 @@
 
   h1, h2, h3, p, ul { margin: 0; }
 
+  a {
+    color: #2b4f77;
+    text-decoration: none;
+  }
+
   /* Header */
   header {
     text-align: center;
@@ -221,13 +226,13 @@
     {% if contact.email %}
     <span class="contact-item">
       <svg viewBox="0 0 24 24"><path d="M3 5h18v14H3z"/><path d="M3 6l9 7 9-7"/></svg>
-      {{ contact.email }}
+      <a href="mailto:{{ contact.email }}">{{ contact.email }}</a>
     </span>
     {% endif %}
     {% if contact.phone %}
     <span class="contact-item">
       <svg viewBox="0 0 24 24"><path d="M6 3c-1 3 0 6 1 8s3 3 6 4c1 .3 3-1 3-1l3 3s-1 3-4 3C9 20 4 15 4 9 4 6 6 5 6 5z"/></svg>
-      {{ contact.phone }}
+      <a href="tel:{{ contact.phone | replace(' ', '') | replace('-', '') }}">{{ contact.phone }}</a>
     </span>
     {% endif %}
     {% if contact.location %}
@@ -236,16 +241,16 @@
       {{ contact.location }}
     </span>
     {% endif %}
-    {% if contact.linkedin %}
+    {% if contact.linkedin_url %}
     <span class="contact-item">
       <span class="badge">in</span>
-      {{ contact.linkedin }}
+      <a href="{{ contact.linkedin_url }}">LinkedIn</a>
     </span>
     {% endif %}
-    {% if contact.github %}
+    {% if contact.github_url %}
     <span class="contact-item">
       <span class="badge">gh</span>
-      {{ contact.github }}
+      <a href="{{ contact.github_url }}">GitHub</a>
     </span>
     {% endif %}
   </div>
@@ -284,7 +289,9 @@
   <div class="bar"><h2>Technical Projects</h2></div>
   {% for project in projects %}
   <div class="project-entry">
-    <div class="project-name">{{ project.name }}</div>
+    <div class="project-name">
+      {% if project.url %}<a href="{{ project.url }}">{{ project.name }}</a>{% else %}{{ project.name }}{% endif %}
+    </div>
     {% if project.bullets %}
     <ul class="bullets">
       {% for bullet in project.bullets %}

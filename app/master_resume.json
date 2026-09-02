@@ -5,8 +5,8 @@
     "email": "you@example.com",
     "phone": "000-0000000",
     "location": "Ramat Gan, Israel",
-    "linkedin": "linkedin.com/in/tom-koren1",
-    "github": "github.com/TomKoren1"
+    "linkedin": "https://www.linkedin.com/in/tom-koren1/",
+    "github": "https://github.com/TomKoren1"
   },
   "summary": "Multi-certified DevOps Engineer (AWS SAA, CKA, RHCSA) and Computer Science student highly proficient in AWS, Kubernetes, and Linux. Dedicated to automating cloud infrastructure using Terraform and building reliable CI/CD pipelines. Combines an automation-first mindset with hands-on experience using Generative AI and AI-assisted development tools (Claude Code, GitHub Copilot) to optimize system reliability and software delivery.",
   "skills": [
@@ -58,6 +58,7 @@
   "projects": [
     {
       "name": "Self-Hosted AI Website Generator",
+      "url": "https://github.com/TomKoren1/website-ai-builder",
       "bullets": [
         "Architected and deployed a local Gitea instance on a Kubernetes cluster to manage internal version control and CI/CD workflows.",
         "Containerized backend services (FastAPI, Node.js) with Docker and configured Alembic for database migrations.",

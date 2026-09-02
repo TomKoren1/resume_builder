@@ -1,5 +1,7 @@
+import html
 import io
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -74,6 +76,65 @@ def flatten_skills(skills):
     return flat
 
 
+def ensure_https(url):
+    """Add a https:// scheme to a bare domain (e.g. "github.com/x") so it
+    works as a clickable href; leaves an already-schemed URL untouched."""
+    if not url:
+        return url
+    return url if re.match(r"^https?://", url) else f"https://{url}"
+
+
+def extract_keywords(skills):
+    """Pull individual tool/tech names out of
+    ["Category: AWS (EC2, S3, ...), Terraform, ...", ...] for auto-bolding.
+    Both the outer terms (AWS, Terraform) and parenthetical detail
+    (EC2, S3, ...) become candidate keywords."""
+    keywords = set()
+    for entry in skills or []:
+        text = entry.split(":", 1)[1] if ":" in entry else entry
+        for paren in re.findall(r"\(([^)]*)\)", text):
+            for tok in paren.split(","):
+                tok = tok.strip()
+                if tok:
+                    keywords.add(tok)
+        text_wo_paren = re.sub(r"\([^)]*\)", "", text)
+        for tok in text_wo_paren.split(","):
+            tok = tok.strip()
+            if tok:
+                keywords.add(tok)
+    return keywords
+
+
+_BOLD_MARKDOWN_RE = re.compile(r"\*\*(.+?)\*\*")
+
+
+def highlight_text(text, keywords):
+    """HTML-escape free text, then bold anything worth calling out:
+    - **phrase** markdown authored directly in the resume JSON, for
+      manual control over what gets highlighted, and
+    - any occurrence of a known skill/tech keyword, auto-detected.
+    """
+    if not text:
+        return text
+
+    escaped = html.escape(text)
+    escaped = _BOLD_MARKDOWN_RE.sub(lambda m: f"<strong>{m.group(1)}</strong>", escaped)
+
+    if keywords:
+        sorted_kw = sorted({html.escape(k) for k in keywords if k}, key=len, reverse=True)
+        pattern = re.compile("(" + "|".join(re.escape(k) for k in sorted_kw) + ")", re.IGNORECASE)
+
+        # Don't re-bold text already wrapped in <strong> by the markdown
+        # pass above - only transform the plain-text segments between tags.
+        parts = re.split(r"(<strong>.*?</strong>)", escaped)
+        for i, part in enumerate(parts):
+            if not part.startswith("<strong>"):
+                parts[i] = pattern.sub(lambda m: f"<strong>{m.group(0)}</strong>", part)
+        escaped = "".join(parts)
+
+    return escaped
+
+
 def render_resume(resume_json_path, template_path, output_pdf_path):
     template_path = Path(template_path)
 
@@ -84,6 +145,26 @@ def render_resume(resume_json_path, template_path, output_pdf_path):
 
     validate_resume_data(resume_data)
     resume_data["skills_flat"] = flatten_skills(resume_data.get("skills"))
+
+    # Contact links: LinkedIn/GitHub are stored as bare-or-schemed URLs;
+    # the template shows a short label ("LinkedIn"/"GitHub") that links here.
+    contact = resume_data.get("contact", {})
+    if contact.get("linkedin"):
+        contact["linkedin_url"] = ensure_https(contact["linkedin"])
+    if contact.get("github"):
+        contact["github_url"] = ensure_https(contact["github"])
+
+    # Project headline -> repo link, and bold out the most important
+    # words/sentences (auto-detected skill keywords, plus any **manual**
+    # markdown bolding authored directly into the resume JSON).
+    keywords = extract_keywords(resume_data.get("skills"))
+    resume_data["summary"] = highlight_text(resume_data.get("summary"), keywords)
+    for job in resume_data.get("experience", []):
+        job["bullets"] = [highlight_text(b, keywords) for b in job.get("bullets", [])]
+    for project in resume_data.get("projects", []):
+        project["bullets"] = [highlight_text(b, keywords) for b in project.get("bullets", [])]
+        if project.get("url"):
+            project["url"] = ensure_https(project["url"])
 
     env = Environment(loader=FileSystemLoader(str(template_path.parent)))
     template = env.get_template(template_path.name)

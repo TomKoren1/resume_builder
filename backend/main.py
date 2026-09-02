@@ -23,6 +23,8 @@ SYSTEM_PROMPT = (
     "Your task is to take a master JSON resume and tailor it to a specific job description. "
     "Select the most relevant experience, emphasize the right tools (e.g., Kubernetes, AWS, Terraform), "
     "and output the final result STRICTLY as valid JSON matching the original schema. "
+    "Copy every 'url' field (e.g. contact.linkedin, contact.github, and each project's 'url') through "
+    "verbatim, unmodified - never invent, drop, or alter a URL. "
     "Do not include any conversational text, markdown formatting, or ```json blocks. Output ONLY raw JSON."
 )
 
