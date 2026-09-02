@@ -53,7 +53,6 @@ def call_anthropic_api(user_text):
     response = client.messages.create(
         model=ANTHROPIC_MODEL_ID,
         max_tokens=4096,
-        temperature=0.1,
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": user_text}]
     )
