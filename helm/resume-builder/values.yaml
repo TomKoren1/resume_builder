@@ -1,0 +1,56 @@
+# helm/resume-builder/values.yaml
+
+# Custom App Settings
+backend:
+  replicaCount: 1
+  image:
+    repository: tomkoren/resume-backend # Replace with your Docker Hub/ECR repo
+    tag: "latest"
+  service:
+    port: 8000
+  env:
+    awsRegion: "us-east-1"
+    # Note: Sensitive keys (ANTHROPIC_API_KEY, AWS_ACCESS_KEY_ID) should be handled via Kubernetes Secrets, not hardcoded here.
+
+frontend:
+  replicaCount: 1
+  image:
+    repository: tomkoren/resume-frontend
+    tag: "latest"
+  service:
+    port: 80
+
+# Dependency Configurations (Overrides for the community charts)
+grafana:
+  enabled: true
+  adminPassword: "admin" # Change for production
+  service:
+    type: NodePort # Or LoadBalancer depending on your cluster (Minikube/Kind vs EKS)
+    port: 80
+  # Automatically configure Prometheus and Loki as data sources in Grafana
+  datasources: 
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+      - name: Prometheus
+        type: prometheus
+        url: http://{{ .Release.Name }}-prometheus-server
+        access: proxy
+        isDefault: true
+      - name: Loki
+        type: loki
+        url: http://{{ .Release.Name }}-loki:3100
+        access: proxy
+
+prometheus:
+  enabled: true
+  server:
+    service:
+      type: ClusterIP
+
+loki-stack:
+  enabled: true
+  loki:
+    isDefault: false
+  promtail:
+    enabled: true

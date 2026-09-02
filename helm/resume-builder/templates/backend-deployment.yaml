@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "resume-builder.fullname" . }}-backend
+spec:
+  replicas: {{ .Values.backend.replicaCount }}
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/metrics"
+        prometheus.io/port: "{{ .Values.backend.service.port }}"
+    spec:
+      serviceAccountName: {{ include "resume-builder.fullname" . }}-backend-sa  # <-- Attach it here
+      containers:
+        - name: backend
+          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+          ports:
+            - containerPort: {{ .Values.backend.service.port }}
+          envFrom:
+            - secretRef:
+                name: {{ include "resume-builder.fullname" . }}-secrets
