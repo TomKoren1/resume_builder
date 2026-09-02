@@ -60,6 +60,20 @@ def validate_resume_data(resume_data):
             )
 
 
+def flatten_skills(skills):
+    """Turn ["Category: a, b, c (with, nested, commas)", ...] into a flat
+    ["a, b, c (with, nested, commas)", ...] list (category labels dropped,
+    one item per original category) for the single-line skills display.
+    Splitting further on "," would break apart parenthetical detail like
+    "AWS (EC2, S3, ...)", so each category is kept whole."""
+    flat = []
+    for entry in skills or []:
+        items = entry.split(":", 1)[1].strip() if ":" in entry else entry.strip()
+        if items:
+            flat.append(items)
+    return flat
+
+
 def render_resume(resume_json_path, template_path, output_pdf_path):
     template_path = Path(template_path)
 
@@ -69,6 +83,7 @@ def render_resume(resume_json_path, template_path, output_pdf_path):
     resume_data = load_resume_json(resume_json_path)
 
     validate_resume_data(resume_data)
+    resume_data["skills_flat"] = flatten_skills(resume_data.get("skills"))
 
     env = Environment(loader=FileSystemLoader(str(template_path.parent)))
     template = env.get_template(template_path.name)
