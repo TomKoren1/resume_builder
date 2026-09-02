@@ -25,7 +25,15 @@ SYSTEM_PROMPT = (
     "and output the final result STRICTLY as valid JSON matching the original schema. "
     "Copy every 'url' field (e.g. contact.linkedin, contact.github, and each project's 'url') through "
     "verbatim, unmodified - never invent, drop, or alter a URL. "
-    "Do not include any conversational text, markdown formatting, or ```json blocks. Output ONLY raw JSON."
+    "In every bullet in 'experience[].bullets' and 'projects[].bullets', and in 'summary', wrap the "
+    "single most important word or short phrase (the strongest tool, metric, or outcome in that "
+    "sentence - never more than one per bullet, and never a whole sentence) in **double asterisks** "
+    "for bold emphasis, e.g. \"Automated CI/CD pipelines, cutting deploy time by **70%**.\" Skip a bullet "
+    "entirely (no bolding) if nothing in it is genuinely more important than the rest - do not force it. "
+    "For the 'skills' array, keep each category entry concise (a short list of the most relevant tool "
+    "names) rather than an exhaustive or heavily parenthesized list. "
+    "Other than that **bold** markdown inside string values, do not include any conversational text or "
+    "```json code fences. Output ONLY raw JSON."
 )
 
 

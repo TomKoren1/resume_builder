@@ -8,7 +8,7 @@
     "linkedin": "https://www.linkedin.com/in/tom-koren1/",
     "github": "https://github.com/TomKoren1"
   },
-  "summary": "Multi-certified DevOps Engineer (AWS SAA, CKA, RHCSA) and Computer Science student highly proficient in AWS, Kubernetes, and Linux. Dedicated to automating cloud infrastructure using Terraform and building reliable CI/CD pipelines. Combines an automation-first mindset with hands-on experience using Generative AI and AI-assisted development tools (Claude Code, GitHub Copilot) to optimize system reliability and software delivery.",
+  "summary": "**Multi-certified DevOps Engineer** (AWS SAA, CKA, RHCSA) and Computer Science student highly proficient in AWS, Kubernetes, and Linux. Dedicated to automating cloud infrastructure using Terraform and building reliable CI/CD pipelines. Combines an automation-first mindset with hands-on experience using Generative AI and AI-assisted development tools (Claude Code, GitHub Copilot) to optimize system reliability and software delivery.",
   "skills": [
     "Cloud & Infrastructure: AWS (EC2, S3, IAM, VPC, ECR, EKS, CLI), Linux (RHEL, internals & node-level debugging), Docker, Kubernetes (control plane & architecture)",
     "CI/CD & IaC: Terraform, GitHub Actions, ArgoCD, GitOps, Git SCM",
@@ -26,10 +26,10 @@
       "end_date": "2026-08",
       "location": "Israel",
       "bullets": [
-        "Provisioned highly available AWS and Kubernetes infrastructure using Terraform.",
-        "Automated CI/CD release pipelines via GitHub Actions and GitOps workflows.",
-        "Configured Prometheus and Grafana to monitor system performance, KPIs, and uptime.",
-        "Emulated AWS cloud services locally via LocalStack to test, define, and deploy cloud infrastructure using Terraform."
+        "Provisioned highly available AWS and Kubernetes infrastructure using **Terraform**.",
+        "Automated CI/CD release pipelines via **GitHub Actions** and GitOps workflows.",
+        "Configured **Prometheus and Grafana** to monitor system performance, KPIs, and uptime.",
+        "Emulated AWS cloud services locally via **LocalStack** to test, define, and deploy cloud infrastructure using Terraform."
       ]
     },
     {
@@ -39,7 +39,7 @@
       "end_date": "Present",
       "location": "Israel",
       "bullets": [
-        "Instructed 20+ students in Python and SQL programming fundamentals.",
+        "Instructed **20+ students** in Python and SQL programming fundamentals.",
         "Developed and debugged custom Python automation scripts to optimize learning workflows."
       ]
     },
@@ -50,8 +50,8 @@
       "end_date": "2023-03",
       "location": "Israel",
       "bullets": [
-        "Served as a combat soldier in high-stakes environments, managing critical incident response under extreme pressure.",
-        "Awarded an Outstanding Reservist Award."
+        "Served as a combat soldier in high-stakes environments, managing **critical incident response** under extreme pressure.",
+        "Awarded an **Outstanding Reservist Award**."
       ]
     }
   ],
@@ -60,10 +60,10 @@
       "name": "Self-Hosted AI Website Generator",
       "url": "https://github.com/TomKoren1/website-ai-builder",
       "bullets": [
-        "Architected and deployed a local Gitea instance on a Kubernetes cluster to manage internal version control and CI/CD workflows.",
-        "Containerized backend services (FastAPI, Node.js) with Docker and configured Alembic for database migrations.",
-        "Integrated LLM APIs into the backend to power Generative AI features, troubleshooting endpoints for high availability.",
-        "Used Claude Code via the CLI to accelerate infrastructure configuration and backend development."
+        "Architected and deployed a local **Gitea** instance on a Kubernetes cluster to manage internal version control and CI/CD workflows.",
+        "Containerized backend services (FastAPI, Node.js) with **Docker** and configured Alembic for database migrations.",
+        "Integrated **LLM APIs** into the backend to power Generative AI features, troubleshooting endpoints for high availability.",
+        "Used **Claude Code** via the CLI to accelerate infrastructure configuration and backend development."
       ]
     }
   ],

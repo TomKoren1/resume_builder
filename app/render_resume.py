@@ -13,13 +13,15 @@ from pypdf import PdfReader
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from resume_contact import load_resume_json
 
-# Must match the @page rule in template.html (Letter, 0.5in top/bottom,
-# 0.6in left/right margins) - used to figure out how much the content
-# needs to be scaled down to fit on a single page.
+# Must match the @page rule in template.html (Letter, 0.45in top/bottom,
+# 0.55in left/right margins) - used to figure out how much the content
+# needs to be scaled down to fit on a single page, and passed into the
+# template so it can flex-distribute any leftover space between sections
+# instead of leaving it as dead whitespace at the bottom.
 PAGE_WIDTH_IN = 8.5
 PAGE_HEIGHT_IN = 11
-MARGIN_TOP_BOTTOM_IN = 0.5 * 2
-MARGIN_LEFT_RIGHT_IN = 0.6 * 2
+MARGIN_TOP_BOTTOM_IN = 0.45 * 2
+MARGIN_LEFT_RIGHT_IN = 0.55 * 2
 PX_PER_IN = 96
 CONTENT_WIDTH_PX = round((PAGE_WIDTH_IN - MARGIN_LEFT_RIGHT_IN) * PX_PER_IN)
 CONTENT_HEIGHT_PX = round((PAGE_HEIGHT_IN - MARGIN_TOP_BOTTOM_IN) * PX_PER_IN)
@@ -62,7 +64,7 @@ def validate_resume_data(resume_data):
             )
 
 
-MAX_SKILLS_SHOWN = 15
+MAX_SKILLS_SHOWN = 12
 
 
 def flatten_skills(skills, max_items=MAX_SKILLS_SHOWN):
@@ -102,52 +104,22 @@ def ensure_https(url):
     return url if re.match(r"^https?://", url) else f"https://{url}"
 
 
-def extract_keywords(skills):
-    """Pull individual tool/tech names out of
-    ["Category: AWS (EC2, S3, ...), Terraform, ...", ...] for auto-bolding.
-    Both the outer terms (AWS, Terraform) and parenthetical detail
-    (EC2, S3, ...) become candidate keywords."""
-    keywords = set()
-    for entry in skills or []:
-        text = entry.split(":", 1)[1] if ":" in entry else entry
-        for paren in re.findall(r"\(([^)]*)\)", text):
-            for tok in paren.split(","):
-                tok = tok.strip()
-                if tok:
-                    keywords.add(tok)
-        text_wo_paren = re.sub(r"\([^)]*\)", "", text)
-        for tok in text_wo_paren.split(","):
-            tok = tok.strip()
-            if tok:
-                keywords.add(tok)
-    return keywords
-
-
 _BOLD_MARKDOWN_RE = re.compile(r"\*\*(.+?)\*\*")
 
 
-def highlight_text(text, keywords):
-    """HTML-escape free text, then bold at most one phrase in it - never a
-    scattershot of individually-bolded words:
-    - if the text has **manual** markdown bolding authored directly into
-      the resume JSON, that wins and no auto-bolding is applied on top, or
-    - otherwise, the single longest/first known skill-keyword match found
-      gets bolded, as a lightweight auto emphasis.
+def highlight_text(text):
+    """HTML-escape free text and convert **phrase** markdown to <strong>.
+
+    Bolding is manual-only, authored directly into the resume JSON (by a
+    human in master_resume.json, or by the model in a tailored resume -
+    see the system prompt in backend/main.py, which asks it to bold the
+    one or two most important words/phrases per bullet). No auto-keyword
+    guessing: that produced an inconsistent, scattershot look.
     """
     if not text:
         return text
-
     escaped = html.escape(text)
-
-    if _BOLD_MARKDOWN_RE.search(escaped):
-        return _BOLD_MARKDOWN_RE.sub(lambda m: f"<strong>{m.group(1)}</strong>", escaped)
-
-    if keywords:
-        sorted_kw = sorted({html.escape(k) for k in keywords if k}, key=len, reverse=True)
-        pattern = re.compile("(" + "|".join(re.escape(k) for k in sorted_kw) + ")", re.IGNORECASE)
-        escaped = pattern.sub(lambda m: f"<strong>{m.group(0)}</strong>", escaped, count=1)
-
-    return escaped
+    return _BOLD_MARKDOWN_RE.sub(lambda m: f"<strong>{m.group(1)}</strong>", escaped)
 
 
 def render_resume(resume_json_path, template_path, output_pdf_path):
@@ -169,21 +141,19 @@ def render_resume(resume_json_path, template_path, output_pdf_path):
     if contact.get("github"):
         contact["github_url"] = ensure_https(contact["github"])
 
-    # Project headline -> repo link, and bold out the most important
-    # words/sentences (auto-detected skill keywords, plus any **manual**
-    # markdown bolding authored directly into the resume JSON).
-    keywords = extract_keywords(resume_data.get("skills"))
-    resume_data["summary"] = highlight_text(resume_data.get("summary"), keywords)
+    # Project headline -> repo link, and convert any **manual** bold
+    # markdown authored into the resume JSON to <strong> (see highlight_text).
+    resume_data["summary"] = highlight_text(resume_data.get("summary"))
     for job in resume_data.get("experience", []):
-        job["bullets"] = [highlight_text(b, keywords) for b in job.get("bullets", [])]
+        job["bullets"] = [highlight_text(b) for b in job.get("bullets", [])]
     for project in resume_data.get("projects", []):
-        project["bullets"] = [highlight_text(b, keywords) for b in project.get("bullets", [])]
+        project["bullets"] = [highlight_text(b) for b in project.get("bullets", [])]
         if project.get("url"):
             project["url"] = ensure_https(project["url"])
 
     env = Environment(loader=FileSystemLoader(str(template_path.parent)))
     template = env.get_template(template_path.name)
-    html_content = template.render(**resume_data)
+    html_content = template.render(page_fill_height_px=CONTENT_HEIGHT_PX, **resume_data)
 
     with sync_playwright() as p:
         browser = p.chromium.launch(channel="chromium")
