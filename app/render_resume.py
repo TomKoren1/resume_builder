@@ -62,17 +62,35 @@ def validate_resume_data(resume_data):
             )
 
 
-def flatten_skills(skills):
-    """Turn ["Category: a, b, c (with, nested, commas)", ...] into a flat
-    ["a, b, c (with, nested, commas)", ...] list (category labels dropped,
-    one item per original category) for the single-line skills display.
-    Splitting further on "," would break apart parenthetical detail like
-    "AWS (EC2, S3, ...)", so each category is kept whole."""
-    flat = []
+MAX_SKILLS_SHOWN = 15
+
+
+def flatten_skills(skills, max_items=MAX_SKILLS_SHOWN):
+    """Turn ["Category: AWS (EC2, S3, ...), Terraform, ...", ...] into a
+    short, flat list of top-level skill names for a single-line display
+    (parenthetical sub-detail like "(EC2, S3, ...)" is dropped - too
+    granular for a capped list). Samples round-robin across categories
+    (one item from each category per pass) rather than taking categories
+    in full one at a time, so a long list still gets trimmed to a
+    representative spread instead of losing entire categories off the end.
+    """
+    category_items = []
     for entry in skills or []:
-        items = entry.split(":", 1)[1].strip() if ":" in entry else entry.strip()
+        text = entry.split(":", 1)[1] if ":" in entry else entry
+        text_wo_paren = re.sub(r"\([^)]*\)", "", text)
+        items = [tok.strip() for tok in text_wo_paren.split(",") if tok.strip()]
         if items:
-            flat.append(items)
+            category_items.append(items)
+
+    flat = []
+    round_index = 0
+    while len(flat) < max_items and round_index < max(len(items) for items in category_items or [[]]):
+        for items in category_items:
+            if round_index < len(items):
+                flat.append(items[round_index])
+                if len(flat) >= max_items:
+                    break
+        round_index += 1
     return flat
 
 
@@ -109,28 +127,25 @@ _BOLD_MARKDOWN_RE = re.compile(r"\*\*(.+?)\*\*")
 
 
 def highlight_text(text, keywords):
-    """HTML-escape free text, then bold anything worth calling out:
-    - **phrase** markdown authored directly in the resume JSON, for
-      manual control over what gets highlighted, and
-    - any occurrence of a known skill/tech keyword, auto-detected.
+    """HTML-escape free text, then bold at most one phrase in it - never a
+    scattershot of individually-bolded words:
+    - if the text has **manual** markdown bolding authored directly into
+      the resume JSON, that wins and no auto-bolding is applied on top, or
+    - otherwise, the single longest/first known skill-keyword match found
+      gets bolded, as a lightweight auto emphasis.
     """
     if not text:
         return text
 
     escaped = html.escape(text)
-    escaped = _BOLD_MARKDOWN_RE.sub(lambda m: f"<strong>{m.group(1)}</strong>", escaped)
+
+    if _BOLD_MARKDOWN_RE.search(escaped):
+        return _BOLD_MARKDOWN_RE.sub(lambda m: f"<strong>{m.group(1)}</strong>", escaped)
 
     if keywords:
         sorted_kw = sorted({html.escape(k) for k in keywords if k}, key=len, reverse=True)
         pattern = re.compile("(" + "|".join(re.escape(k) for k in sorted_kw) + ")", re.IGNORECASE)
-
-        # Don't re-bold text already wrapped in <strong> by the markdown
-        # pass above - only transform the plain-text segments between tags.
-        parts = re.split(r"(<strong>.*?</strong>)", escaped)
-        for i, part in enumerate(parts):
-            if not part.startswith("<strong>"):
-                parts[i] = pattern.sub(lambda m: f"<strong>{m.group(0)}</strong>", part)
-        escaped = "".join(parts)
+        escaped = pattern.sub(lambda m: f"<strong>{m.group(0)}</strong>", escaped, count=1)
 
     return escaped
 
