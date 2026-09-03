@@ -1,5 +1,13 @@
 # Resume Builder
 
+[![Build and Deploy](https://github.com/TomKoren1/resume_builder/actions/workflows/build-and-deploy.yml/badge.svg)](https://github.com/TomKoren1/resume_builder/actions/workflows/build-and-deploy.yml)
+[![Python](https://img.shields.io/badge/python-3.11-3776AB?logo=python&logoColor=white)](backend/requirements.txt)
+[![FastAPI](https://img.shields.io/badge/backend-FastAPI-009688?logo=fastapi&logoColor=white)](backend/README.md)
+[![Kubernetes](https://img.shields.io/badge/deployed%20on-Kubernetes-326CE5?logo=kubernetes&logoColor=white)](helm/resume-builder/README.md)
+[![ArgoCD](https://img.shields.io/badge/GitOps-ArgoCD-EF7B4D?logo=argo&logoColor=white)](argocd/README.md)
+[![Prometheus](https://img.shields.io/badge/metrics-Prometheus-E6522C?logo=prometheus&logoColor=white)](helm/resume-builder/README.md)
+[![Grafana](https://img.shields.io/badge/dashboards-Grafana-F46800?logo=grafana&logoColor=white)](helm/resume-builder/README.md)
+
 An AI-powered resume tailoring app: given a master resume and a target job
 posting, an LLM selects and emphasizes the most relevant experience and
 renders the result to a polished, single-page PDF. It runs as a small web
