@@ -2,14 +2,16 @@ import json
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi.responses import HTMLResponse
 
 from .. import db
 from ..config import PDF_SCRATCH_PATH, TAILORED_OUTPUT_PATH, TEMPLATE_PATH
 from ..schemas import EditableResume, HistoryDetail, HistoryItem
 
 try:
-    from app.render_resume import render_resume
+    from app.render_resume import build_resume_html, render_resume
 except ImportError:
+    build_resume_html = None
     render_resume = None
 
 router = APIRouter()
@@ -39,6 +41,20 @@ def get_history_detail(history_id: int):
     if entry is None:
         raise HTTPException(status_code=404, detail="No such history entry.")
     return entry
+
+
+@router.get("/history/{history_id}/preview", response_class=HTMLResponse)
+def preview_history_entry(history_id: int):
+    """Renders this entry's stored resume through the exact same
+    template.html Playwright prints to PDF - loaded into an iframe by the
+    frontend's click-to-edit History editor, so what you edit is what you
+    get, not a separate approximation of it."""
+    if build_resume_html is None:
+        raise HTTPException(status_code=500, detail="Preview rendering unavailable.")
+    entry = db.get_history_entry(history_id)
+    if entry is None or entry["data"] is None:
+        raise HTTPException(status_code=404, detail="No such history entry.")
+    return build_resume_html(entry["data"], TEMPLATE_PATH)
 
 
 @router.get("/history/{history_id}/download")

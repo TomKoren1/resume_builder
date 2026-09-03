@@ -225,29 +225,110 @@
     color: #222;
     padding: 0 4px;
   }
+
+  .subtitle {
+    font-size: 10.5pt;
+    color: #45607d;
+    letter-spacing: 1px;
+    margin-top: 2px;
+  }
+
+  .exp-location {
+    font-size: 7.6pt;
+    font-weight: 400;
+    color: #667;
+    white-space: nowrap;
+    margin-top: 2px;
+  }
+
+  .inline-list {
+    display: inline;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .inline-list li {
+    display: inline;
+  }
+
+  .inline-list li:not(:last-child)::after {
+    content: " \00b7 ";
+  }
+
+  /* Editor-only affordances (History entry click-to-edit preview). Inert
+     in the actual PDF: Playwright's page.pdf() emulates print media by
+     default, so @media print rules apply automatically with no extra
+     flag needed - .editor-only elements never render there. */
+  @media print {
+    .editor-only { display: none !important; }
+  }
+
+  @media screen {
+    [contenteditable]:hover {
+      outline: 1px dashed #9ab0c9;
+      outline-offset: 1px;
+    }
+    [contenteditable]:focus {
+      outline: 2px solid #2b6bdb;
+      outline-offset: 1px;
+    }
+  }
+
+  .editor-only {
+    font-family: system-ui, sans-serif;
+    font-size: 8pt;
+    border: 1px dashed #9ab0c9;
+    background: #eef4fb;
+    color: #2b6bdb;
+    border-radius: 4px;
+    cursor: pointer;
+    padding: 1px 6px;
+    line-height: 1.6;
+  }
+
+  .editor-only.remove-entry-btn {
+    border: 1px solid #e3b3b3;
+    background: #fbeaea;
+    color: #c0392b;
+    border-radius: 50%;
+    width: 14px;
+    height: 14px;
+    padding: 0;
+    font-size: 9pt;
+    line-height: 12px;
+    text-align: center;
+  }
+
+  .exp-location-row, .project-name-row, .cert-row, .lang-row, .skill-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>{{ name }}</h1>
+  <h1 data-field="name" contenteditable="true">{{ name }}</h1>
+  <p class="subtitle" data-field="title" contenteditable="true">{{ title }}</p>
   <div class="contact-row">
     {% if contact.email %}
     <span class="contact-item">
       <svg viewBox="0 0 24 24"><path d="M3 5h18v14H3z"/><path d="M3 6l9 7 9-7"/></svg>
-      <a href="mailto:{{ contact.email }}">{{ contact.email }}</a>
+      <a href="mailto:{{ contact.email }}" data-field="contact-email" contenteditable="true">{{ contact.email }}</a>
     </span>
     {% endif %}
     {% if contact.phone %}
     <span class="contact-item">
       <svg viewBox="0 0 24 24"><path d="M6 3c-1 3 0 6 1 8s3 3 6 4c1 .3 3-1 3-1l3 3s-1 3-4 3C9 20 4 15 4 9 4 6 6 5 6 5z"/></svg>
-      <a href="tel:{{ contact.phone | replace(' ', '') | replace('-', '') }}">{{ contact.phone }}</a>
+      <a href="tel:{{ contact.phone | replace(' ', '') | replace('-', '') }}" data-field="contact-phone" contenteditable="true">{{ contact.phone }}</a>
     </span>
     {% endif %}
     {% if contact.location %}
     <span class="contact-item">
       <svg viewBox="0 0 24 24"><path d="M12 21s7-6.5 7-12a7 7 0 1 0-14 0c0 5.5 7 12 7 12z"/><circle cx="12" cy="9" r="2.3"/></svg>
-      {{ contact.location }}
+      <span data-field="contact-location" contenteditable="true">{{ contact.location }}</span>
     </span>
     {% endif %}
     {% if contact.linkedin_url %}
@@ -267,93 +348,109 @@
 
 {% macro section_summary() %}
 {% if summary %}
-<section>
+<section data-section="summary">
   <div class="bar"><h2>Profile</h2></div>
-  <p class="profile-text">{{ summary }}</p>
+  <p class="profile-text" data-field="summary" contenteditable="true">{{ summary }}</p>
 </section>
 {% endif %}
 {% endmacro %}
 
 {% macro section_experience() %}
 {% if experience %}
-<section>
+<section data-section="experience">
   <div class="bar"><h2>Professional Experience</h2></div>
+  <div data-list="experience">
   {% for job in experience %}
-  <div class="exp-row">
-    <div class="exp-date">{{ job.start_date }} &ndash; {{ job.end_date }}</div>
+  <div class="exp-row" data-entry="experience">
+    <div class="exp-date">
+      <span data-field="start_date" contenteditable="true">{{ job.start_date }}</span><span class="date-sep"> &ndash; </span><span data-field="end_date" contenteditable="true">{{ job.end_date }}</span>
+      <div class="exp-location" data-field="location" contenteditable="true">{{ job.location }}</div>
+    </div>
     <div>
-      <div class="exp-title">{{ job.role }} <span class="company">| {{ job.company }}</span></div>
-      {% if job.bullets %}
-      <ul class="bullets">
+      <div class="exp-title">
+        <span data-field="role" contenteditable="true">{{ job.role }}</span>
+        <span class="company">| <span data-field="company" contenteditable="true">{{ job.company }}</span></span>
+        <button type="button" class="editor-only remove-entry-btn" title="Remove this entry">&times;</button>
+      </div>
+      <ul class="bullets" data-list="bullets">
         {% for bullet in job.bullets %}
-        <li>{{ bullet }}</li>
+        <li data-entry="bullet"><span data-field="bullet" contenteditable="true">{{ bullet }}</span><button type="button" class="editor-only remove-entry-btn" title="Remove bullet">&times;</button></li>
         {% endfor %}
       </ul>
-      {% endif %}
+      <button type="button" class="editor-only add-bullet-btn">+ bullet</button>
     </div>
   </div>
   {% endfor %}
+  </div>
+  <button type="button" class="editor-only add-entry-btn" data-add-entry="experience">+ Experience</button>
 </section>
 {% endif %}
 {% endmacro %}
 
 {% macro section_projects() %}
 {% if projects %}
-<section>
+<section data-section="projects">
   <div class="bar"><h2>Technical Projects</h2></div>
+  <div data-list="projects">
   {% for project in projects %}
-  <div class="project-entry">
-    <div class="project-name">
-      {% if project.url %}<a href="{{ project.url }}">{{ project.name }}</a>{% else %}{{ project.name }}{% endif %}
+  <div class="project-entry" data-entry="project">
+    <div class="project-name-row">
+      <span class="project-name" data-field="name" contenteditable="true">{{ project.name }}</span>
+      <button type="button" class="editor-only remove-entry-btn" title="Remove this entry">&times;</button>
     </div>
-    {% if project.bullets %}
-    <ul class="bullets">
+    <ul class="bullets" data-list="bullets">
       {% for bullet in project.bullets %}
-      <li>{{ bullet }}</li>
+      <li data-entry="bullet"><span data-field="bullet" contenteditable="true">{{ bullet }}</span><button type="button" class="editor-only remove-entry-btn" title="Remove bullet">&times;</button></li>
       {% endfor %}
     </ul>
-    {% endif %}
+    <button type="button" class="editor-only add-bullet-btn">+ bullet</button>
   </div>
   {% endfor %}
+  </div>
+  <button type="button" class="editor-only add-entry-btn" data-add-entry="project">+ Project</button>
 </section>
 {% endif %}
 {% endmacro %}
 
 {% macro section_certifications() %}
 {% if certifications %}
-<section>
+<section data-section="certifications">
   <div class="bar"><h2>Certifications</h2></div>
-  <ul class="line-list">
+  <ul class="line-list" data-list="certifications">
     {% for cert in certifications %}
-    <li>{{ cert }}</li>
+    <li class="cert-row" data-entry="certification">
+      <span data-field="text" contenteditable="true">{{ cert }}</span>
+      <button type="button" class="editor-only remove-entry-btn" title="Remove">&times;</button>
+    </li>
     {% endfor %}
   </ul>
+  <button type="button" class="editor-only add-entry-btn" data-add-entry="certification">+ Certification</button>
 </section>
 {% endif %}
 {% endmacro %}
 
 {% macro section_education() %}
 {% if education %}
-<section>
+<section data-section="education">
   <div class="bar"><h2>Education</h2></div>
-  <ul class="line-list">
+  <ul class="line-list" data-list="education">
     {% for edu in education %}
-    <li>
-      <span class="entry-title">{{ edu.degree }}</span> | {{ edu.school }}
-      <span class="entry-range">({{ edu.start_date }} &ndash; {{ edu.end_date }})</span>
-      {% if edu.notes %}
-      <span class="entry-notes">{{ edu.notes | join(" &middot; ") }}</span>
-      {% endif %}
+    <li data-entry="education">
+      <span class="entry-title" data-field="degree" contenteditable="true">{{ edu.degree }}</span> | <span data-field="school" contenteditable="true">{{ edu.school }}</span>
+      <span class="entry-range">(<span data-field="start_date" contenteditable="true">{{ edu.start_date }}</span> &ndash; <span data-field="end_date" contenteditable="true">{{ edu.end_date }}</span>)</span>
+      <button type="button" class="editor-only remove-entry-btn" title="Remove">&times;</button>
+      <span class="entry-notes" data-field="notes" contenteditable="true">{{ edu.notes | join(" &middot; ") }}</span>
     </li>
     {% endfor %}
   </ul>
+  <button type="button" class="editor-only add-entry-btn" data-add-entry="education">+ Education</button>
 </section>
 {% endif %}
 {% endmacro %}
 
 {% macro section_skills() %}
 {% if skills_flat %}
-<section>
+<section data-section="skills">
   <div class="bar"><h2>Skills</h2></div>
   <p class="skills-line">{{ skills_flat | join(" &middot; ") }}</p>
 </section>
@@ -362,9 +459,14 @@
 
 {% macro section_languages() %}
 {% if languages %}
-<section>
+<section data-section="languages">
   <div class="bar"><h2>Languages</h2></div>
-  <p class="skills-line">{{ languages | join(" &middot; ") }}</p>
+  <ul class="inline-list skills-line" data-list="languages">
+    {% for lang in languages %}
+    <li class="lang-row" data-entry="language"><span data-field="text" contenteditable="true">{{ lang }}</span><button type="button" class="editor-only remove-entry-btn" title="Remove">&times;</button></li>
+    {% endfor %}
+  </ul>
+  <button type="button" class="editor-only add-entry-btn" data-add-entry="language">+ Language</button>
 </section>
 {% endif %}
 {% endmacro %}

@@ -529,6 +529,12 @@ async function restoreVersion(id) {
 }
 
 // ---------- Edit a past generated resume (from History) ----------
+// Canva-like click-to-edit: the iframe loads GET /history/{id}/preview,
+// which is rendered through the *real* app/template.html - the exact same
+// template Playwright prints to PDF - so what's edited here can never
+// visually drift from the actual output. Specific elements in that HTML
+// are contenteditable; add/remove controls are wired up from this file
+// after the iframe loads (template.html itself stays script-free).
 
 const SECTION_LABELS = {
     summary: 'Summary', experience: 'Experience', projects: 'Projects',
@@ -540,6 +546,29 @@ const DEFAULT_SECTION_ORDER = ['summary', 'experience', 'projects', 'certificati
 let currentHistoryEditId = null;
 let currentSectionOrder = [];
 let currentHiddenSections = new Set();
+let currentOriginalResume = {};
+let skillsEditorEl = null;
+
+function getPreviewDoc() {
+    const iframe = document.getElementById('historyPreviewFrame');
+    return iframe && iframe.contentDocument;
+}
+
+// Reorders/hides the preview's actual [data-section] elements to match
+// currentSectionOrder/currentHiddenSections - re-appending an existing
+// child moves it rather than duplicating it, so processing sections in
+// order leaves them in exactly that order. Safe to call before the iframe
+// has finished loading (no-ops until there's a document to act on).
+function applySectionOrderToPreview() {
+    const doc = getPreviewDoc();
+    if (!doc || !doc.body) return;
+    currentSectionOrder.forEach(id => {
+        const section = doc.querySelector(`[data-section="${id}"]`);
+        if (!section) return; // wasn't rendered at all (e.g. originally empty list)
+        doc.body.appendChild(section);
+        section.hidden = currentHiddenSections.has(id);
+    });
+}
 
 function renderSectionControls() {
     const el = document.getElementById('sectionControls');
@@ -555,6 +584,7 @@ function renderSectionControls() {
         checkbox.addEventListener('change', () => {
             if (checkbox.checked) currentHiddenSections.delete(id);
             else currentHiddenSections.add(id);
+            applySectionOrderToPreview();
         });
 
         const label = document.createElement('span');
@@ -567,6 +597,7 @@ function renderSectionControls() {
         upBtn.addEventListener('click', () => {
             [currentSectionOrder[idx - 1], currentSectionOrder[idx]] = [currentSectionOrder[idx], currentSectionOrder[idx - 1]];
             renderSectionControls();
+            applySectionOrderToPreview();
         });
 
         const downBtn = document.createElement('button');
@@ -576,6 +607,7 @@ function renderSectionControls() {
         downBtn.addEventListener('click', () => {
             [currentSectionOrder[idx + 1], currentSectionOrder[idx]] = [currentSectionOrder[idx], currentSectionOrder[idx + 1]];
             renderSectionControls();
+            applySectionOrderToPreview();
         });
 
         row.appendChild(checkbox);
@@ -586,13 +618,261 @@ function renderSectionControls() {
     });
 }
 
+function renderSkillsEditor(skills) {
+    const container = document.getElementById('skillsEditorContainer');
+    container.innerHTML = '';
+    skillsEditorEl = makeListEditor(skills);
+    container.appendChild(skillsEditorEl);
+}
+
+// ----- contenteditable bold toggle -----
+// document.execCommand is deprecated but remains the only reliable
+// cross-browser way to toggle bold *within* a contenteditable region -
+// the alternative (manually splicing <strong> around a Range) is real
+// complexity for what's a well-contained, single-purpose need here.
+function wireBoldShortcut(doc) {
+    doc.addEventListener('keydown', (e) => {
+        const isMod = e.ctrlKey || e.metaKey;
+        if (isMod && (e.key === 'b' || e.key === 'B')) {
+            e.preventDefault();
+            doc.execCommand('bold');
+        }
+    });
+}
+
+// Converts one editable element's rendered content back to the
+// **bold** markdown string render_resume.py's highlight_text() already
+// parses. <strong>/<b> -> **...**; <br> (e.g. from a paste) -> a space,
+// since these fields are meant to stay single-line/flowing; any other
+// wrapper tag a browser's contenteditable might introduce is stripped,
+// keeping its text. Whitespace is collapsed and trimmed.
+function htmlToMarkdown(el) {
+    function walk(node) {
+        if (node.nodeType === Node.TEXT_NODE) return node.textContent;
+        if (node.nodeType !== Node.ELEMENT_NODE) return '';
+        const tag = node.tagName.toLowerCase();
+        if (tag === 'br') return ' ';
+        const inner = Array.from(node.childNodes).map(walk).join('');
+        if (tag === 'strong' || tag === 'b') return `**${inner}**`;
+        return inner;
+    }
+    return Array.from(el.childNodes).map(walk).join('').replace(/\s+/g, ' ').trim();
+}
+
+// ----- add/remove controls -----
+// Small DOM-building helpers mirroring template.html's structure for a
+// freshly-added (empty) entry, kept in one place per entry type.
+function dEl(doc, tag, attrs, children) {
+    const node = doc.createElement(tag);
+    Object.entries(attrs || {}).forEach(([k, v]) => node.setAttribute(k, v));
+    (children || []).forEach(c => node.appendChild(c));
+    return node;
+}
+
+function editableSpan(doc, field, text, extraClass) {
+    const span = dEl(doc, 'span', { 'data-field': field, contenteditable: 'true' }, [doc.createTextNode(text || '')]);
+    if (extraClass) span.className = extraClass;
+    return span;
+}
+
+function removeBtnEl(doc, title) {
+    const btn = dEl(doc, 'button', { type: 'button', class: 'editor-only remove-entry-btn', title: title || 'Remove' });
+    btn.textContent = '×';
+    return btn;
+}
+
+function bulletsListEl(doc) {
+    return dEl(doc, 'ul', { class: 'bullets', 'data-list': 'bullets' });
+}
+
+function addBulletBtnEl(doc) {
+    const btn = dEl(doc, 'button', { type: 'button', class: 'editor-only add-bullet-btn' });
+    btn.textContent = '+ bullet';
+    return btn;
+}
+
+function newExperienceEntry(doc) {
+    const dateWrap = dEl(doc, 'div', { class: 'exp-date' }, [
+        editableSpan(doc, 'start_date', ''),
+        dEl(doc, 'span', { class: 'date-sep' }, [doc.createTextNode(' – ')]),
+        editableSpan(doc, 'end_date', ''),
+        dEl(doc, 'div', { class: 'exp-location', 'data-field': 'location', contenteditable: 'true' }),
+    ]);
+    const titleRow = dEl(doc, 'div', { class: 'exp-title' }, [
+        editableSpan(doc, 'role', 'New Role'),
+        dEl(doc, 'span', { class: 'company' }, [doc.createTextNode('| '), editableSpan(doc, 'company', 'Company')]),
+        removeBtnEl(doc, 'Remove this entry'),
+    ]);
+    const right = dEl(doc, 'div', {}, [titleRow, bulletsListEl(doc), addBulletBtnEl(doc)]);
+    return dEl(doc, 'div', { class: 'exp-row', 'data-entry': 'experience' }, [dateWrap, right]);
+}
+
+function newProjectEntry(doc) {
+    const nameRow = dEl(doc, 'div', { class: 'project-name-row' }, [
+        editableSpan(doc, 'name', 'New Project', 'project-name'),
+        removeBtnEl(doc, 'Remove this entry'),
+    ]);
+    return dEl(doc, 'div', { class: 'project-entry', 'data-entry': 'project' }, [nameRow, bulletsListEl(doc), addBulletBtnEl(doc)]);
+}
+
+function newEducationEntry(doc) {
+    return dEl(doc, 'li', { 'data-entry': 'education' }, [
+        editableSpan(doc, 'degree', 'Degree', 'entry-title'),
+        doc.createTextNode(' | '),
+        editableSpan(doc, 'school', 'School'),
+        doc.createTextNode(' '),
+        dEl(doc, 'span', { class: 'entry-range' }, [
+            doc.createTextNode('('),
+            editableSpan(doc, 'start_date', ''),
+            doc.createTextNode(' – '),
+            editableSpan(doc, 'end_date', ''),
+            doc.createTextNode(')'),
+        ]),
+        removeBtnEl(doc, 'Remove'),
+        dEl(doc, 'span', { class: 'entry-notes', 'data-field': 'notes', contenteditable: 'true' }),
+    ]);
+}
+
+function newCertificationEntry(doc) {
+    return dEl(doc, 'li', { class: 'cert-row', 'data-entry': 'certification' }, [
+        editableSpan(doc, 'text', 'New certification'),
+        removeBtnEl(doc),
+    ]);
+}
+
+function newLanguageEntry(doc) {
+    return dEl(doc, 'li', { class: 'lang-row', 'data-entry': 'language' }, [
+        editableSpan(doc, 'text', 'New language'),
+        removeBtnEl(doc),
+    ]);
+}
+
+const ADD_ENTRY_CONFIG = {
+    experience: { listSelector: '[data-list="experience"]', factory: newExperienceEntry },
+    project: { listSelector: '[data-list="projects"]', factory: newProjectEntry },
+    education: { listSelector: '[data-list="education"]', factory: newEducationEntry },
+    certification: { listSelector: '[data-list="certifications"]', factory: newCertificationEntry },
+    language: { listSelector: '[data-list="languages"]', factory: newLanguageEntry },
+};
+
+// Event delegation on the iframe's document - one listener handles every
+// add/remove button, including ones added after the fact, rather than
+// re-wiring listeners each time an entry is added.
+function wireEditorControls(doc) {
+    doc.addEventListener('click', (e) => {
+        const removeBtn = e.target.closest('.remove-entry-btn');
+        if (removeBtn) {
+            const entry = removeBtn.closest('[data-entry]');
+            if (entry) entry.remove();
+            return;
+        }
+
+        const addBulletBtn = e.target.closest('.add-bullet-btn');
+        if (addBulletBtn) {
+            const list = addBulletBtn.previousElementSibling;
+            if (list && list.matches('[data-list="bullets"]')) {
+                const li = dEl(doc, 'li', { 'data-entry': 'bullet' }, [
+                    editableSpan(doc, 'bullet', ''),
+                    removeBtnEl(doc, 'Remove bullet'),
+                ]);
+                list.appendChild(li);
+                li.querySelector('[contenteditable]').focus();
+            }
+            return;
+        }
+
+        const addEntryBtn = e.target.closest('.add-entry-btn');
+        if (addEntryBtn) {
+            const config = ADD_ENTRY_CONFIG[addEntryBtn.dataset.addEntry];
+            const list = config && doc.querySelector(config.listSelector);
+            if (list) {
+                const newEl = config.factory(doc);
+                list.appendChild(newEl);
+                const firstEditable = newEl.querySelector('[contenteditable]');
+                if (firstEditable) firstEditable.focus();
+            }
+        }
+    });
+}
+
+// ----- reading edits back out of the preview -----
+
+function fieldText(root, field) {
+    const el = root.querySelector(`[data-field="${field}"]`);
+    return el ? el.textContent.trim() : '';
+}
+
+// DOM order *is* array order (same principle collectCardList() already
+// uses for the master-resume form) - starts from a shallow copy of the
+// matching original entry (by index) so fields with no visual/editable
+// representation on the page (e.g. a project's `url`) survive a save
+// unchanged instead of being silently dropped; a freshly-added entry has
+// no original counterpart, so unrepresented fields just fall back to
+// their Pydantic defaults.
+function collectRepeatedEntries(doc, entrySelector, textFields, origArray) {
+    return Array.from(doc.querySelectorAll(entrySelector)).map((entryEl, i) => {
+        const base = { ...(origArray[i] || {}) };
+        textFields.forEach(f => { base[f] = fieldText(entryEl, f); });
+        const bulletsUl = entryEl.querySelector('[data-list="bullets"]');
+        base.bullets = bulletsUl
+            ? Array.from(bulletsUl.querySelectorAll('[data-field="bullet"]')).map(htmlToMarkdown).filter(Boolean)
+            : [];
+        return base;
+    });
+}
+
+function collectEducation(doc, origArray) {
+    return Array.from(doc.querySelectorAll('[data-entry="education"]')).map((entryEl, i) => {
+        const base = { ...(origArray[i] || {}) };
+        ['degree', 'school', 'start_date', 'end_date'].forEach(f => { base[f] = fieldText(entryEl, f); });
+        const notesText = fieldText(entryEl, 'notes');
+        base.notes = notesText ? notesText.split('·').map(s => s.trim()).filter(Boolean) : [];
+        return base;
+    });
+}
+
+function serializeIframeResume(doc, original) {
+    // Scoped to <header> explicitly rather than querying data-field="name"
+    // against the whole document - project entries have their own
+    // data-field="name" span, and while header always precedes every
+    // section today (so an unscoped query would happen to still resolve
+    // correctly), that's an ordering invariant this shouldn't quietly
+    // depend on.
+    const headerEl = doc.querySelector('header') || doc;
+    const name = fieldText(headerEl, 'name') || original.name;
+    const title = fieldText(headerEl, 'title') || original.title;
+
+    // linkedin/github aren't editable in-canvas (only their fixed "LinkedIn"/
+    // "GitHub" label is visible - the real URL lives in href, which
+    // contenteditable can't touch) - preserved from `original` untouched.
+    const contact = { ...(original.contact || {}) };
+    ['email', 'phone', 'location'].forEach(k => {
+        const el = headerEl.querySelector(`[data-field="contact-${k}"]`);
+        if (el) contact[k] = el.textContent.trim();
+    });
+
+    const summaryEl = doc.querySelector('[data-field="summary"]');
+    const summary = summaryEl ? htmlToMarkdown(summaryEl) : (original.summary || '');
+
+    const experience = collectRepeatedEntries(doc, '[data-entry="experience"]',
+        ['role', 'company', 'start_date', 'end_date', 'location'], original.experience || []);
+    const projects = collectRepeatedEntries(doc, '[data-entry="project"]',
+        ['name'], original.projects || []);
+    const education = collectEducation(doc, original.education || []);
+
+    const certifications = Array.from(doc.querySelectorAll('[data-entry="certification"] [data-field="text"]'))
+        .map(el => el.textContent.trim()).filter(Boolean);
+    const languages = Array.from(doc.querySelectorAll('[data-entry="language"] [data-field="text"]'))
+        .map(el => el.textContent.trim()).filter(Boolean);
+
+    return { name, title, contact, summary, experience, projects, education, certifications, languages };
+}
+
 async function openHistoryEditor(id) {
     showView('history-edit');
-    const container = document.getElementById('historyEditFields');
     const statusEl = document.getElementById('historyEditStatus');
     statusEl.className = '';
     statusEl.textContent = '';
-    container.innerHTML = 'Loading...';
 
     try {
         const res = await fetch(`/history/${id}`);
@@ -600,14 +880,23 @@ async function openHistoryEditor(id) {
         if (!res.ok) throw new Error(formatApiError(entry, 'Failed to load'));
 
         currentHistoryEditId = id;
-        const resume = entry.data || {};
-        currentSectionOrder = (resume.section_order && resume.section_order.length)
-            ? [...resume.section_order] : [...DEFAULT_SECTION_ORDER];
-        currentHiddenSections = new Set(resume.hidden_sections || []);
+        currentOriginalResume = entry.data || {};
+        currentSectionOrder = (currentOriginalResume.section_order && currentOriginalResume.section_order.length)
+            ? [...currentOriginalResume.section_order] : [...DEFAULT_SECTION_ORDER];
+        currentHiddenSections = new Set(currentOriginalResume.hidden_sections || []);
         renderSectionControls();
-        renderResumeFields(container, resume);
+        renderSkillsEditor(currentOriginalResume.skills || []);
+
+        const iframe = document.getElementById('historyPreviewFrame');
+        iframe.onload = () => {
+            wireBoldShortcut(iframe.contentDocument);
+            wireEditorControls(iframe.contentDocument);
+            applySectionOrderToPreview();
+        };
+        iframe.src = `/history/${id}/preview`;
     } catch (error) {
-        container.innerHTML = `Error: ${error.message}`;
+        statusEl.className = 'error';
+        statusEl.textContent = `Error: ${error.message}`;
     }
 }
 
@@ -617,9 +906,16 @@ document.getElementById('backToHistoryBtn').addEventListener('click', () => {
 });
 
 async function saveHistoryEdit(asNew) {
-    const container = document.getElementById('historyEditFields');
+    const doc = getPreviewDoc();
     const statusEl = document.getElementById('historyEditStatus');
-    const resume = collectResumeFields(container);
+    if (!doc || !doc.body) {
+        statusEl.className = 'error';
+        statusEl.textContent = 'Preview is still loading - try again in a moment.';
+        return;
+    }
+
+    const resume = serializeIframeResume(doc, currentOriginalResume);
+    resume.skills = collectListEditor(skillsEditorEl);
     resume.section_order = currentSectionOrder;
     resume.hidden_sections = Array.from(currentHiddenSections);
 

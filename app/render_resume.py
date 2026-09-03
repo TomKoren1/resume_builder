@@ -130,13 +130,18 @@ def highlight_text(text):
     return _BOLD_MARKDOWN_RE.sub(lambda m: f"<strong>{m.group(1)}</strong>", escaped)
 
 
-def render_resume(resume_json_path, template_path, output_pdf_path):
-    template_path = Path(template_path)
+def build_resume_html(resume_data, template_path):
+    """Renders an already-loaded resume dict through template.html via
+    Jinja2 and returns the HTML string - the same HTML Playwright prints
+    to PDF below, also reused directly by the GET /history/{id}/preview
+    endpoint (backend/routers/history.py) for the live in-browser editor,
+    so the preview can never drift from what the PDF actually looks like.
 
-    # Merges in real email/phone from the environment or a gitignored local
-    # file (see resume_contact.py); the committed JSON only ever holds
-    # placeholders.
-    resume_data = load_resume_json(resume_json_path)
+    Caller is responsible for anything file-loading-specific (contact
+    overrides via load_resume_json - render_resume() below does this;
+    the /preview endpoint already has a fully-prepared dict from the DB).
+    """
+    template_path = Path(template_path)
 
     validate_resume_data(resume_data)
     resume_data["skills_flat"] = flatten_skills(resume_data.get("skills"))
@@ -163,7 +168,15 @@ def render_resume(resume_json_path, template_path, output_pdf_path):
 
     env = Environment(loader=FileSystemLoader(str(template_path.parent)))
     template = env.get_template(template_path.name)
-    html_content = template.render(page_fill_height_px=CONTENT_HEIGHT_PX, **resume_data)
+    return template.render(page_fill_height_px=CONTENT_HEIGHT_PX, **resume_data)
+
+
+def render_resume(resume_json_path, template_path, output_pdf_path):
+    # Merges in real email/phone from the environment or a gitignored local
+    # file (see resume_contact.py); the committed JSON only ever holds
+    # placeholders.
+    resume_data = load_resume_json(resume_json_path)
+    html_content = build_resume_html(resume_data, template_path)
 
     with sync_playwright() as p:
         browser = p.chromium.launch(channel="chromium")
