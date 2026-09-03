@@ -111,3 +111,14 @@ jobs:
           git add helm/resume-builder/values.yaml
           git diff --cached --quiet || git commit -m "chore: bump image tag(s) [skip ci]"
           git push
+
+  notify-failure:
+    needs: [changes, build-backend, build-frontend, update-chart]
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post to Slack
+        run: |
+          curl -sf -X POST -H 'Content-Type: application/json' \
+            -d "{\"text\": \"🔴 FAILING: Build and Deploy failed on \`${GITHUB_REF_NAME}\` (${GITHUB_SHA:0:7}): ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\"}" \
+            "${{ secrets.SLACK_WEBHOOK }}"

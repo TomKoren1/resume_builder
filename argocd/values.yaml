@@ -1,0 +1,67 @@
+# Helm values for the ArgoCD installation itself (applied manually - ArgoCD
+# isn't GitOps-managed by itself, see argocd/application.yaml comment):
+#   helm upgrade argocd argo/argo-cd -n argocd -f argocd/values.yaml
+configs:
+  params:
+    server.insecure: true # plain HTTP - matches every other UI in this cluster (Traefik Ingress, no TLS)
+
+notifications:
+  # The Slack webhook lives in a SealedSecret (argocd/notifications-sealedsecret.yaml)
+  # instead of Helm values, so it never sits in plaintext in git. `create: false`
+  # tells Helm not to manage/reset argocd-notifications-secret at all, so it
+  # doesn't fight the SealedSecret for ownership on future `helm upgrade`s.
+  secret:
+    create: false
+  # Built-in "slack" notifier needs a bot token (Slack API); we only have an
+  # incoming webhook, so use the generic "webhook" notifier type instead,
+  # pointed at our webhook. $slack-webhook-url resolves from the
+  # SealedSecret-owned argocd-notifications-secret above.
+  notifiers:
+    service.webhook.slack: |
+      url: $slack-webhook-url
+      headers:
+      - name: Content-Type
+        value: application/json
+  templates:
+    template.app-sync-failed: |
+      webhook:
+        slack:
+          method: POST
+          body: |
+            {"text": "🔴 ArgoCD sync failed for {{.app.metadata.name}}: {{.app.status.operationState.message}}"}
+    template.app-health-degraded: |
+      webhook:
+        slack:
+          method: POST
+          body: |
+            {"text": "🔴 ArgoCD app {{.app.metadata.name}} is Degraded"}
+  triggers:
+    trigger.on-sync-failed: |
+      - description: Application syncing has failed
+        send: [app-sync-failed]
+        when: app.status.operationState.phase in ['Error', 'Failed']
+    trigger.on-health-degraded: |
+      - description: Application has degraded
+        send: [app-health-degraded]
+        when: app.status.health.status == 'Degraded'
+
+controller:
+  metrics:
+    enabled: true
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8082"
+
+server:
+  metrics:
+    enabled: true
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8083"
+
+repoServer:
+  metrics:
+    enabled: true
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8084"

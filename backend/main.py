@@ -1,12 +1,20 @@
 from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from . import db
 from .observability import logger
 from .routers import generate, history, master_resume
 
 app = FastAPI()
+
+# Generic per-route request count/latency metrics for every endpoint (the
+# app's own GENERATE_COUNT/LLM_LATENCY in observability.py only ever covered
+# /generate - this fills in /history, /master-resume, etc. for free).
+# Registers into the same default prometheus_client registry our manual
+# /metrics endpoint below already serves, so no second endpoint is needed.
+Instrumentator().instrument(app)
 
 
 @app.on_event("startup")

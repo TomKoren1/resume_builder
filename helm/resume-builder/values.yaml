@@ -64,6 +64,32 @@ grafana:
     dashboards:
       enabled: true
       label: grafana_dashboard
+  # Node/cluster dashboards - node-exporter and kube-state-metrics/cAdvisor
+  # were already being scraped (confirmed via Prometheus query) but nothing
+  # visualized them. Pulled from grafana.com by ID at startup rather than
+  # hand-authoring JSON - well-established community dashboards.
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: default
+          orgId: 1
+          folder: ""
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/default
+  dashboards:
+    default:
+      node-exporter-full:
+        gnetId: 1860
+        revision: 37
+        datasource: Prometheus
+      kubernetes-cluster-monitoring:
+        gnetId: 315
+        revision: 3
+        datasource: Prometheus
 prometheus:
   enabled: true
   server:
@@ -107,6 +133,57 @@ prometheus:
               annotations:
                 summary: "High LLM inference latency"
                 description: "p95 LLM inference latency has been above 30s for 5 minutes."
+            - alert: FrontendDown
+              # Plain nginx has no scrapeable /metrics, so up{app="frontend"}
+              # doesn't exist as a useful signal here (and would misreport
+              # anyway - nginx returning HTML isn't valid exposition format).
+              # kube-state-metrics already tracks every Deployment's
+              # available replica count cluster-wide, so reuse that instead.
+              expr: kube_deployment_status_replicas_available{namespace="resume-builder", deployment="resume-builder-frontend"} < 1
+              for: 2m
+              labels:
+                severity: critical
+              annotations:
+                summary: "resume-builder frontend is down"
+                description: "The frontend Deployment has had zero available replicas for 2 minutes."
+        - name: infrastructure
+          rules:
+            - alert: ArgoCDComponentDown
+              expr: absent(up{namespace="argocd"}) or up{namespace="argocd"} == 0
+              for: 5m
+              labels:
+                severity: critical
+              annotations:
+                summary: "An ArgoCD component is down"
+                description: "{{ $labels.pod }} in the argocd namespace has not been scrapeable for 5 minutes - deploys may be stuck."
+            - alert: ArgoAppOutOfSync
+              expr: argocd_app_info{name="resume-builder", sync_status!="Synced"} == 1
+              for: 10m
+              labels:
+                severity: warning
+              annotations:
+                summary: "resume-builder ArgoCD app is out of sync"
+                description: "The resume-builder Application has been out of sync for 10 minutes - a deploy likely failed to apply. Check the ArgoCD UI."
+            - alert: ArgoAppDegraded
+              expr: argocd_app_info{name="resume-builder", health_status="Degraded"} == 1
+              for: 5m
+              labels:
+                severity: critical
+              annotations:
+                summary: "resume-builder ArgoCD app is degraded"
+                description: "ArgoCD reports the resume-builder app as Degraded for 5 minutes. Check the ArgoCD UI."
+            - alert: NodeDiskSpaceLow
+              # Single-node k3s cluster using local-path (hostPath-backed) PVCs
+              # for everything - Prometheus/Loki/Alertmanager/backend data all
+              # share this one disk, so node-level free space stands in for
+              # per-PVC usage.
+              expr: node_filesystem_avail_bytes{mountpoint="/", fstype="ext4"} / node_filesystem_size_bytes{mountpoint="/", fstype="ext4"} < 0.15
+              for: 15m
+              labels:
+                severity: warning
+              annotations:
+                summary: "Node root disk space is low"
+                description: "Less than 15% free space left on / for 15 minutes - Prometheus, Loki, Alertmanager, and the backend's SQLite DB all share this disk."
   alertmanager:
     config:
       global:
@@ -134,5 +211,14 @@ loki-stack:
   enabled: true
   loki:
     isDefault: false
+    # Was emptyDir by default - every pod restart silently wiped all log
+    # history. Also cap retention so the PVC doesn't grow unbounded.
+    persistence:
+      enabled: true
+      size: 5Gi
+    config:
+      table_manager:
+        retention_deletes_enabled: true
+        retention_period: 336h # 14 days
   promtail:
     enabled: true

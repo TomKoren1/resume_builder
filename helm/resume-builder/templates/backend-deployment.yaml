@@ -39,6 +39,18 @@ spec:
           envFrom:
             - secretRef:
                 name: {{ include "resume-builder.fullname" . }}-secrets
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: {{ .Values.backend.service.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: {{ .Values.backend.service.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 20
           volumeMounts:
             - name: backend-data
               mountPath: /data

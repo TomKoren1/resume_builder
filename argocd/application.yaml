@@ -8,6 +8,11 @@ kind: Application
 metadata:
   name: resume-builder
   namespace: argocd
+  annotations:
+    # Push to Slack (via the webhook notifier in argocd/values.yaml) when a
+    # sync fails or the app goes Degraded - both were previously silent.
+    notifications.argoproj.io/subscribe.on-sync-failed.slack: ""
+    notifications.argoproj.io/subscribe.on-health-degraded.slack: ""
 spec:
   project: default
   source:
