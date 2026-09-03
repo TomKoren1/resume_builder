@@ -1,0 +1,225 @@
+# helm/resume-builder/values-monitoring.yaml
+#
+# Observability stack config only - Grafana/Prometheus/Loki/Alertmanager
+# overrides for the vendored community charts. Split out from values.yaml
+# (which is now app-config only: backend/frontend/ingress) since this file
+# alone is ~200 lines and a completely different concern. Applied together
+# with values.yaml via argocd/application.yaml's spec.source.helm.valueFiles
+# - Helm/ArgoCD always load the chart's own values.yaml as the base and
+# layer any valueFiles on top, so nothing needs listing values.yaml itself.
+
+grafana:
+  enabled: true
+  # Admin credentials come from a SealedSecret (see templates/grafana-admin-sealedsecret.yaml)
+  # instead of a plaintext password here.
+  admin:
+    existingSecret: "resume-builder-grafana-admin"
+    userKey: admin-user
+    passwordKey: admin-password
+  service:
+    type: NodePort # Or LoadBalancer depending on your cluster (Minikube/Kind vs EKS)
+    port: 80
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    hosts:
+      - grafana.local
+  # Automatically configure Prometheus and Loki as data sources in Grafana
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          uid: Prometheus
+          type: prometheus
+          url: http://{{ .Release.Name }}-prometheus-server
+          access: proxy
+          isDefault: true
+        - name: Loki
+          uid: Loki
+          type: loki
+          url: http://{{ .Release.Name }}-loki:3100
+          access: proxy
+        # Powers Grafana's native Alerting -> Alertmanager page, so firing/
+        # silenced alerts (the same ones posted to Slack) are visible in
+        # Grafana too, not just in the dashboard's ALERTS-metric panels below.
+        - name: Alertmanager
+          uid: Alertmanager
+          type: alertmanager
+          url: http://{{ .Release.Name }}-alertmanager:9093
+          access: proxy
+          jsonData:
+            implementation: prometheus
+  # Auto-provision the app dashboard from templates/grafana-dashboard-configmap.yaml
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+  # Node/cluster dashboards - node-exporter and kube-state-metrics/cAdvisor
+  # were already being scraped (confirmed via Prometheus query) but nothing
+  # visualized them. Pulled from grafana.com by ID at startup rather than
+  # hand-authoring JSON - well-established community dashboards.
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: default
+          orgId: 1
+          folder: ""
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/default
+  dashboards:
+    default:
+      node-exporter-full:
+        gnetId: 1860
+        revision: 37
+        datasource: Prometheus
+      kubernetes-cluster-monitoring:
+        gnetId: 315
+        revision: 3
+        datasource: Prometheus
+prometheus:
+  enabled: true
+  server:
+    service:
+      type: ClusterIP
+  serverFiles:
+    alerting_rules.yml:
+      groups:
+        - name: resume-builder
+          rules:
+            - alert: BackendDown
+              # up{...} == 0 alone misses the case where the pod is gone
+              # entirely (e.g. scaled to 0) - kubernetes_sd_configs then has
+              # no target to scrape, so the `up` series just disappears
+              # rather than reporting 0. absent(...) catches that case too.
+              expr: absent(up{app="backend"}) or up{app="backend"} == 0
+              for: 2m
+              labels:
+                severity: critical
+              annotations:
+                summary: "resume-builder backend is down"
+                description: "Prometheus has not been able to scrape the backend pod for 2 minutes."
+            - alert: HighResumeGenerationErrorRate
+              expr: |
+                (
+                  sum(rate(resume_generation_total{status="error"}[5m]))
+                  /
+                  sum(rate(resume_generation_total[5m]))
+                ) > 0.2
+              for: 5m
+              labels:
+                severity: warning
+              annotations:
+                summary: "High resume generation error rate"
+                description: "Over 20% of /generate calls have failed over the last 5 minutes."
+            - alert: HighLLMLatency
+              expr: histogram_quantile(0.95, sum(rate(llm_inference_seconds_bucket[5m])) by (le)) > 30
+              for: 5m
+              labels:
+                severity: warning
+              annotations:
+                summary: "High LLM inference latency"
+                description: "p95 LLM inference latency has been above 30s for 5 minutes."
+            - alert: FrontendDown
+              # Plain nginx has no scrapeable /metrics, so up{app="frontend"}
+              # doesn't exist as a useful signal here (and would misreport
+              # anyway - nginx returning HTML isn't valid exposition format).
+              # kube-state-metrics already tracks every Deployment's
+              # available replica count cluster-wide, so reuse that instead.
+              expr: kube_deployment_status_replicas_available{namespace="resume-builder", deployment="resume-builder-frontend"} < 1
+              for: 2m
+              labels:
+                severity: critical
+              annotations:
+                summary: "resume-builder frontend is down"
+                description: "The frontend Deployment has had zero available replicas for 2 minutes."
+        - name: infrastructure
+          rules:
+            - alert: ArgoCDComponentDown
+              expr: absent(up{namespace="argocd"}) or up{namespace="argocd"} == 0
+              for: 5m
+              labels:
+                severity: critical
+              annotations:
+                summary: "An ArgoCD component is down"
+                description: "{{ $labels.pod }} in the argocd namespace has not been scrapeable for 5 minutes - deploys may be stuck."
+            - alert: ArgoAppOutOfSync
+              expr: argocd_app_info{name="resume-builder", sync_status!="Synced"} == 1
+              for: 10m
+              labels:
+                severity: warning
+              annotations:
+                summary: "resume-builder ArgoCD app is out of sync"
+                description: "The resume-builder Application has been out of sync for 10 minutes - a deploy likely failed to apply. Check the ArgoCD UI."
+            - alert: ArgoAppDegraded
+              expr: argocd_app_info{name="resume-builder", health_status="Degraded"} == 1
+              for: 5m
+              labels:
+                severity: critical
+              annotations:
+                summary: "resume-builder ArgoCD app is degraded"
+                description: "ArgoCD reports the resume-builder app as Degraded for 5 minutes. Check the ArgoCD UI."
+            - alert: NodeDiskSpaceLow
+              # Single-node k3s cluster using local-path (hostPath-backed) PVCs
+              # for everything - Prometheus/Loki/Alertmanager/backend data all
+              # share this one disk, so node-level free space stands in for
+              # per-PVC usage.
+              expr: node_filesystem_avail_bytes{mountpoint="/", fstype="ext4"} / node_filesystem_size_bytes{mountpoint="/", fstype="ext4"} < 0.15
+              for: 15m
+              labels:
+                severity: warning
+              annotations:
+                summary: "Node root disk space is low"
+                description: "Less than 15% free space left on / for 15 minutes - Prometheus, Loki, Alertmanager, and the backend's SQLite DB all share this disk."
+  alertmanager:
+    config:
+      global:
+        slack_api_url_file: /etc/alertmanager/secrets/resume-builder-secrets/SLACK_WEBHOOK
+      route:
+        receiver: slack-notifications
+        group_by: ["alertname"]
+        group_wait: 30s
+        group_interval: 5m
+        repeat_interval: 3h
+      receivers:
+        - name: slack-notifications
+          slack_configs:
+            - send_resolved: true
+              color: '{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}'
+              title: "{{ if eq .Status \"firing\" }}\U0001F534 FIRING{{ else }}✅ RESOLVED{{ end }}: {{ .CommonAnnotations.summary }}"
+              text: "{{ .CommonAnnotations.description }}"
+    extraSecretMounts:
+      - name: alertmanager-slack-webhook
+        mountPath: /etc/alertmanager/secrets/resume-builder-secrets
+        subPath: ""
+        secretName: resume-builder-secrets
+        readOnly: true
+loki-stack:
+  enabled: true
+  loki:
+    isDefault: false
+    # Was emptyDir by default - every pod restart silently wiped all log
+    # history. Also cap retention so the PVC doesn't grow unbounded.
+    persistence:
+      enabled: true
+      size: 5Gi
+    config:
+      table_manager:
+        retention_deletes_enabled: true
+        retention_period: 336h # 14 days
+  promtail:
+    enabled: true
+    config:
+      clients:
+        # loki-stack's own default is http://{{ .Release.Name }}:3100/...,
+        # which assumes loki-stack is installed as its own top-level
+        # release (so .Release.Name IS the loki service name). Here it's
+        # a dependency of the umbrella chart, so .Release.Name resolves to
+        # the parent release ("resume-builder") instead of the actual
+        # loki service ("resume-builder-loki") - promtail was silently
+        # failing to push any logs at all until this was overridden.
+        - url: http://resume-builder-loki:3100/loki/api/v1/push
