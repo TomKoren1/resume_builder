@@ -9,6 +9,15 @@ from pydantic import BaseModel, Field
 DEFAULT_SECTION_ORDER = [
     "summary", "experience", "projects", "certifications", "education", "skills", "languages",
 ]
+DEFAULT_SECTION_TITLES = {
+    "summary": "Profile",
+    "experience": "Professional Experience",
+    "projects": "Technical Projects",
+    "certifications": "Certifications",
+    "education": "Education",
+    "skills": "Skills",
+    "languages": "Languages",
+}
 
 
 class GenerateRequest(BaseModel):
@@ -70,6 +79,7 @@ class EditableResume(MasterResume):
     the master source-of-truth needs."""
     section_order: list[str] = Field(default_factory=lambda: list(DEFAULT_SECTION_ORDER))
     hidden_sections: list[str] = Field(default_factory=list)
+    section_titles: dict[str, str] = Field(default_factory=lambda: dict(DEFAULT_SECTION_TITLES))
 
 
 # --- History / version list responses ---

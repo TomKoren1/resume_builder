@@ -242,7 +242,11 @@
   }
 
   .inline-list {
-    display: inline;
+    /* Deliberately block (the default), not inline: text-align: center
+       (from .skills-line, applied together with this class) only centers
+       an element's *inline* children - it has no effect on the element
+       itself. Making this <ul> inline made it (and its content) hug the
+       section's left edge instead of centering. */
     list-style: none;
     margin: 0;
     padding: 0;
@@ -262,6 +266,11 @@
      flag needed - .editor-only elements never render there. */
   @media print {
     .editor-only { display: none !important; }
+    /* A section with no content (e.g. certifications turned on but never
+       filled in) stays visible in the editor - so it can be toggled and
+       added to - but must never show an empty heading bar in the actual
+       PDF. */
+    .section-empty { display: none !important; }
   }
 
   @media screen {
@@ -346,19 +355,24 @@
   </div>
 </header>
 
+{# Every section always renders (so it can be turned on / added to from the
+   editor even when empty) - .section-empty is hidden via @media print
+   below, so an empty section still never shows up in the actual PDF. #}
+
+{% macro section_heading(section_id, text) %}
+<div class="bar"><h2 data-field="section_title" contenteditable="true">{{ text }}</h2></div>
+{% endmacro %}
+
 {% macro section_summary() %}
-{% if summary %}
-<section data-section="summary">
-  <div class="bar"><h2>Profile</h2></div>
+<section data-section="summary"{% if not summary %} class="section-empty"{% endif %}>
+  {{ section_heading("summary", section_titles.summary) }}
   <p class="profile-text" data-field="summary" contenteditable="true">{{ summary }}</p>
 </section>
-{% endif %}
 {% endmacro %}
 
 {% macro section_experience() %}
-{% if experience %}
-<section data-section="experience">
-  <div class="bar"><h2>Professional Experience</h2></div>
+<section data-section="experience"{% if not experience %} class="section-empty"{% endif %}>
+  {{ section_heading("experience", section_titles.experience) }}
   <div data-list="experience">
   {% for job in experience %}
   <div class="exp-row" data-entry="experience">
@@ -384,13 +398,11 @@
   </div>
   <button type="button" class="editor-only add-entry-btn" data-add-entry="experience">+ Experience</button>
 </section>
-{% endif %}
 {% endmacro %}
 
 {% macro section_projects() %}
-{% if projects %}
-<section data-section="projects">
-  <div class="bar"><h2>Technical Projects</h2></div>
+<section data-section="projects"{% if not projects %} class="section-empty"{% endif %}>
+  {{ section_heading("projects", section_titles.projects) }}
   <div data-list="projects">
   {% for project in projects %}
   <div class="project-entry" data-entry="project">
@@ -409,13 +421,11 @@
   </div>
   <button type="button" class="editor-only add-entry-btn" data-add-entry="project">+ Project</button>
 </section>
-{% endif %}
 {% endmacro %}
 
 {% macro section_certifications() %}
-{% if certifications %}
-<section data-section="certifications">
-  <div class="bar"><h2>Certifications</h2></div>
+<section data-section="certifications"{% if not certifications %} class="section-empty"{% endif %}>
+  {{ section_heading("certifications", section_titles.certifications) }}
   <ul class="line-list" data-list="certifications">
     {% for cert in certifications %}
     <li class="cert-row" data-entry="certification">
@@ -426,13 +436,11 @@
   </ul>
   <button type="button" class="editor-only add-entry-btn" data-add-entry="certification">+ Certification</button>
 </section>
-{% endif %}
 {% endmacro %}
 
 {% macro section_education() %}
-{% if education %}
-<section data-section="education">
-  <div class="bar"><h2>Education</h2></div>
+<section data-section="education"{% if not education %} class="section-empty"{% endif %}>
+  {{ section_heading("education", section_titles.education) }}
   <ul class="line-list" data-list="education">
     {% for edu in education %}
     <li data-entry="education">
@@ -445,22 +453,18 @@
   </ul>
   <button type="button" class="editor-only add-entry-btn" data-add-entry="education">+ Education</button>
 </section>
-{% endif %}
 {% endmacro %}
 
 {% macro section_skills() %}
-{% if skills_flat %}
-<section data-section="skills">
-  <div class="bar"><h2>Skills</h2></div>
+<section data-section="skills"{% if not skills_flat %} class="section-empty"{% endif %}>
+  {{ section_heading("skills", section_titles.skills) }}
   <p class="skills-line">{{ skills_flat | join(" &middot; ") }}</p>
 </section>
-{% endif %}
 {% endmacro %}
 
 {% macro section_languages() %}
-{% if languages %}
-<section data-section="languages">
-  <div class="bar"><h2>Languages</h2></div>
+<section data-section="languages"{% if not languages %} class="section-empty"{% endif %}>
+  {{ section_heading("languages", section_titles.languages) }}
   <ul class="inline-list skills-line" data-list="languages">
     {% for lang in languages %}
     <li class="lang-row" data-entry="language"><span data-field="text" contenteditable="true">{{ lang }}</span><button type="button" class="editor-only remove-entry-btn" title="Remove">&times;</button></li>
@@ -468,7 +472,6 @@
   </ul>
   <button type="button" class="editor-only add-entry-btn" data-add-entry="language">+ Language</button>
 </section>
-{% endif %}
 {% endmacro %}
 
 {% set section_macros = {

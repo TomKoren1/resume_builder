@@ -34,6 +34,19 @@ DEFAULT_SECTION_ORDER = [
     "summary", "experience", "projects", "certifications", "education", "skills", "languages",
 ]
 
+# Default heading text per section, editable per-entry from the History
+# editor (stored in a resume's "section_titles" dict, keyed the same as
+# DEFAULT_SECTION_ORDER above).
+DEFAULT_SECTION_TITLES = {
+    "summary": "Profile",
+    "experience": "Professional Experience",
+    "projects": "Technical Projects",
+    "certifications": "Certifications",
+    "education": "Education",
+    "skills": "Skills",
+    "languages": "Languages",
+}
+
 # Playwright's page.pdf(scale=...) floor; below this the text becomes too
 # small to be a usable resume, so we'd rather fail loudly than ship it.
 MIN_PRINT_SCALE = 0.75
@@ -144,9 +157,16 @@ def build_resume_html(resume_data, template_path):
     template_path = Path(template_path)
 
     validate_resume_data(resume_data)
-    resume_data["skills_flat"] = flatten_skills(resume_data.get("skills"))
+    # Tool/metric names inside skills entries can carry the same **bold**
+    # markdown convention as bullets (the tailoring prompt asks the model to
+    # bold "every concrete tool or metric", which includes skill names) -
+    # without this, the literal ** markers show up as visible text.
+    resume_data["skills_flat"] = [highlight_text(s) for s in flatten_skills(resume_data.get("skills"))]
     resume_data.setdefault("section_order", DEFAULT_SECTION_ORDER)
     resume_data.setdefault("hidden_sections", [])
+    # Merge rather than setdefault: an entry that only renamed one section
+    # still needs the other six filled in with their defaults.
+    resume_data["section_titles"] = {**DEFAULT_SECTION_TITLES, **resume_data.get("section_titles", {})}
 
     # Contact links: LinkedIn/GitHub are stored as bare-or-schemed URLs;
     # the template shows a short label ("LinkedIn"/"GitHub") that links here.

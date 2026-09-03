@@ -865,7 +865,13 @@ function serializeIframeResume(doc, original) {
     const languages = Array.from(doc.querySelectorAll('[data-entry="language"] [data-field="text"]'))
         .map(el => el.textContent.trim()).filter(Boolean);
 
-    return { name, title, contact, summary, experience, projects, education, certifications, languages };
+    const section_titles = { ...(original.section_titles || {}) };
+    DEFAULT_SECTION_ORDER.forEach(id => {
+        const heading = doc.querySelector(`[data-section="${id}"] [data-field="section_title"]`);
+        if (heading) section_titles[id] = heading.textContent.trim();
+    });
+
+    return { name, title, contact, summary, experience, projects, education, certifications, languages, section_titles };
 }
 
 async function openHistoryEditor(id) {
