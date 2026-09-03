@@ -10,8 +10,9 @@ COPY backend/requirements.txt backend/requirements.txt
 RUN pip install --no-cache-dir -r backend/requirements.txt
 RUN playwright install --with-deps chromium
 
-COPY backend/main.py backend/main.py
-COPY backend/db.py backend/db.py
+# Copy the whole package (not file-by-file) so adding a new backend module
+# doesn't also require a Dockerfile edit.
+COPY backend/ backend/
 COPY resume_contact.py resume_contact.py
 COPY app/ app/
 

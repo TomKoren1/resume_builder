@@ -7,12 +7,11 @@ RESUME_EMAIL/PHONE in resume_contact.py).
 """
 
 import json
-import os
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-DB_PATH = os.environ.get("DB_PATH", "app/resume_builder.db")
+from .config import DB_PATH
 
 
 def _now():

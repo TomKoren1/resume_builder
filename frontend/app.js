@@ -1,3 +1,19 @@
+// FastAPI returns `detail` as a plain string for hand-raised HTTPExceptions,
+// but as an array of {loc, msg} field errors for Pydantic 422 validation
+// failures - normalize both into one readable string.
+function formatApiError(data, fallback) {
+    const detail = data && data.detail;
+    if (!detail) return fallback;
+    if (typeof detail === 'string') return detail;
+    if (Array.isArray(detail)) {
+        return detail.map(e => {
+            const field = Array.isArray(e.loc) ? e.loc.slice(1).join('.') : '';
+            return field ? `${field}: ${e.msg}` : e.msg;
+        }).join('; ');
+    }
+    return fallback;
+}
+
 // ---------- Tab switching ----------
 document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -378,7 +394,7 @@ document.getElementById('masterResumeForm').addEventListener('submit', async (e)
             body: JSON.stringify(resume),
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || 'Save failed');
+        if (!res.ok) throw new Error(formatApiError(data, 'Save failed'));
         statusEl.className = 'success';
         statusEl.textContent = 'Saved as a new version.';
         loadVersions();
@@ -424,7 +440,7 @@ async function restoreVersion(id) {
     try {
         const res = await fetch(`/master-resume/versions/${id}/restore`, { method: 'POST' });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || 'Restore failed');
+        if (!res.ok) throw new Error(formatApiError(data, 'Restore failed'));
         statusEl.className = 'success';
         statusEl.textContent = 'Restored - now the current version.';
         loadMasterResume();
