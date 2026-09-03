@@ -37,14 +37,69 @@
     },
     {
       "id": 3,
-      "title": "Backend error logs",
+      "title": "Backend errors & warnings",
       "type": "logs",
       "datasource": { "type": "loki", "uid": "Loki" },
       "gridPos": { "h": 10, "w": 24, "x": 0, "y": 8 },
+      "options": { "showTime": true, "sortOrder": "Descending" },
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "Loki" },
-          "expr": "{app=\"resume_backend\"} |= \"ERROR\""
+          "expr": "{app=\"resume_backend\", severity=~\"warning|error\"}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Errors in the last hour",
+      "type": "stat",
+      "datasource": { "type": "loki", "uid": "Loki" },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 18 },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "Loki" },
+          "expr": "sum(count_over_time({app=\"resume_backend\", severity=\"error\"}[1h]))",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Log volume by pod (all components)",
+      "type": "timeseries",
+      "datasource": { "type": "loki", "uid": "Loki" },
+      "gridPos": { "h": 8, "w": 18, "x": 6, "y": 18 },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "Loki" },
+          "expr": "sum by (app) (count_over_time({namespace=\"resume-builder\"}[$__interval]))",
+          "legendFormat": "{{app}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "All backend/frontend logs (live tail)",
+      "type": "logs",
+      "datasource": { "type": "loki", "uid": "Loki" },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 26 },
+      "options": { "showTime": true, "sortOrder": "Descending" },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "Loki" },
+          "expr": "{namespace=\"resume-builder\", app=~\"backend|frontend\"}"
         }
       ]
     }
