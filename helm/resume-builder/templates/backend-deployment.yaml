@@ -4,6 +4,14 @@ metadata:
   name: {{ include "resume-builder.fullname" . }}-backend
 spec:
   replicas: {{ .Values.backend.replicaCount }}
+  strategy:
+    # Avoid two pods briefly mounting the same RWO PVC (and two processes
+    # touching the same SQLite file) during a rollout. rollingUpdate must be
+    # explicitly nulled - the live object still has one from before this
+    # field existed (defaulted by the API server), and server-side apply
+    # won't drop it on its own.
+    type: Recreate
+    rollingUpdate: null
   selector:
     matchLabels:
       app: backend
@@ -20,8 +28,21 @@ spec:
       containers:
         - name: backend
           image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy | default "IfNotPresent" }}
           ports:
             - containerPort: {{ .Values.backend.service.port }}
+          env:
+            - name: LOKI_URL
+              value: "http://{{ .Release.Name }}-loki:3100/loki/api/v1/push"
+            - name: DB_PATH
+              value: "/data/resume_builder.db"
           envFrom:
             - secretRef:
                 name: {{ include "resume-builder.fullname" . }}-secrets
+          volumeMounts:
+            - name: backend-data
+              mountPath: /data
+      volumes:
+        - name: backend-data
+          persistentVolumeClaim:
+            claimName: {{ include "resume-builder.fullname" . }}-backend-data

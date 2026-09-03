@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "resume-builder.fullname" . }}-grafana-dashboard
+  labels:
+    grafana_dashboard: "1"
+data:
+  resume-builder.json: |
+{{ .Files.Get "dashboards/resume-builder.json" | indent 4 }}

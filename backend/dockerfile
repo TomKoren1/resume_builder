@@ -1,13 +1,19 @@
 # backend/Dockerfile
+# Build with the REPO ROOT as context (not backend/), since main.py needs
+# app/master_resume.json and resume_contact.py at runtime:
+#   docker build -t resume-backend:local -f backend/dockerfile .
 FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY backend/requirements.txt backend/requirements.txt
+RUN pip install --no-cache-dir -r backend/requirements.txt
+RUN playwright install --with-deps chromium
 
-COPY . .
+COPY backend/main.py backend/main.py
+COPY backend/db.py backend/db.py
+COPY resume_contact.py resume_contact.py
+COPY app/ app/
 
-# Adjust the command based on your framework (FastAPI shown here)
 EXPOSE 8000
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]

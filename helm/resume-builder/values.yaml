@@ -4,49 +4,135 @@
 backend:
   replicaCount: 1
   image:
-    repository: tomkoren/resume-backend # Replace with your Docker Hub/ECR repo
-    tag: "latest"
+    repository: resume-backend # built locally + imported into k3s containerd
+    tag: "local"
+    pullPolicy: Never
   service:
     port: 8000
+  persistence:
+    size: 1Gi
   env:
     awsRegion: "us-east-1"
-    # Note: Sensitive keys (ANTHROPIC_API_KEY, AWS_ACCESS_KEY_ID) should be handled via Kubernetes Secrets, not hardcoded here.
+    # ANTHROPIC_API_KEY / RESUME_EMAIL / RESUME_PHONE / SLACK_WEBHOOK come from
+    # the SealedSecret in templates/backend-sealedsecret.yaml, never from here.
+  # irsaRoleArn: only meaningful on EKS - leave unset on k3s (see serviceaccount.yaml)
 
 frontend:
   replicaCount: 1
   image:
-    repository: tomkoren/resume-frontend
-    tag: "latest"
+    repository: resume-frontend # built locally + imported into k3s containerd
+    tag: "local"
   service:
     port: 80
+
+ingress:
+  host: resume.local
 
 # Dependency Configurations (Overrides for the community charts)
 grafana:
   enabled: true
-  adminPassword: "admin" # Change for production
+  # Admin credentials come from a SealedSecret (see templates/grafana-admin-sealedsecret.yaml)
+  # instead of a plaintext password here.
+  admin:
+    existingSecret: "resume-builder-grafana-admin"
+    userKey: admin-user
+    passwordKey: admin-password
   service:
     type: NodePort # Or LoadBalancer depending on your cluster (Minikube/Kind vs EKS)
     port: 80
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    hosts:
+      - grafana.local
   # Automatically configure Prometheus and Loki as data sources in Grafana
-  datasources: 
+  datasources:
     datasources.yaml:
       apiVersion: 1
       datasources:
       - name: Prometheus
+        uid: Prometheus
         type: prometheus
         url: http://{{ .Release.Name }}-prometheus-server
         access: proxy
         isDefault: true
       - name: Loki
+        uid: Loki
         type: loki
         url: http://{{ .Release.Name }}-loki:3100
         access: proxy
+  # Auto-provision the app dashboard from templates/grafana-dashboard-configmap.yaml
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
 
 prometheus:
   enabled: true
   server:
     service:
       type: ClusterIP
+  serverFiles:
+    alerting_rules.yml:
+      groups:
+        - name: resume-builder
+          rules:
+            - alert: BackendDown
+              # up{...} == 0 alone misses the case where the pod is gone
+              # entirely (e.g. scaled to 0) - kubernetes_sd_configs then has
+              # no target to scrape, so the `up` series just disappears
+              # rather than reporting 0. absent(...) catches that case too.
+              expr: absent(up{app="backend"}) or up{app="backend"} == 0
+              for: 2m
+              labels:
+                severity: critical
+              annotations:
+                summary: "resume-builder backend is down"
+                description: "Prometheus has not been able to scrape the backend pod for 2 minutes."
+            - alert: HighResumeGenerationErrorRate
+              expr: |
+                (
+                  sum(rate(resume_generation_total{status="error"}[5m]))
+                  /
+                  sum(rate(resume_generation_total[5m]))
+                ) > 0.2
+              for: 5m
+              labels:
+                severity: warning
+              annotations:
+                summary: "High resume generation error rate"
+                description: "Over 20% of /generate calls have failed over the last 5 minutes."
+            - alert: HighLLMLatency
+              expr: histogram_quantile(0.95, sum(rate(llm_inference_seconds_bucket[5m])) by (le)) > 30
+              for: 5m
+              labels:
+                severity: warning
+              annotations:
+                summary: "High LLM inference latency"
+                description: "p95 LLM inference latency has been above 30s for 5 minutes."
+  alertmanager:
+    config:
+      global:
+        slack_api_url_file: /etc/alertmanager/secrets/resume-builder-secrets/SLACK_WEBHOOK
+      route:
+        receiver: slack-notifications
+        group_by: ["alertname"]
+        group_wait: 30s
+        group_interval: 5m
+        repeat_interval: 3h
+      receivers:
+        - name: slack-notifications
+          slack_configs:
+            - send_resolved: true
+              color: '{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}'
+              title: '{{ if eq .Status "firing" }}🔴 FIRING{{ else }}✅ RESOLVED{{ end }}: {{ .CommonAnnotations.summary }}'
+              text: "{{ .CommonAnnotations.description }}"
+    extraSecretMounts:
+      - name: alertmanager-slack-webhook
+        mountPath: /etc/alertmanager/secrets/resume-builder-secrets
+        subPath: ""
+        secretName: resume-builder-secrets
+        readOnly: true
 
 loki-stack:
   enabled: true

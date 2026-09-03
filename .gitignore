@@ -3,6 +3,7 @@ __pycache__/
 .venv/
 venv/
 *.pdf
+*.db
 tailored_resume.json
 .env
 .aws/
