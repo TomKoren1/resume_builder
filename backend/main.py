@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from . import db
+from .observability import logger
 from .routers import generate, history, master_resume
 
 app = FastAPI()
@@ -11,6 +12,7 @@ app = FastAPI()
 @app.on_event("startup")
 def _startup():
     db.init_db()
+    logger.info("Backend started via GitOps (CI build + ArgoCD sync).")
 
 
 # Allow the frontend to communicate with this backend
