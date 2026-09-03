@@ -265,13 +265,16 @@
   </div>
 </header>
 
+{% macro section_summary() %}
 {% if summary %}
 <section>
   <div class="bar"><h2>Profile</h2></div>
   <p class="profile-text">{{ summary }}</p>
 </section>
 {% endif %}
+{% endmacro %}
 
+{% macro section_experience() %}
 {% if experience %}
 <section>
   <div class="bar"><h2>Professional Experience</h2></div>
@@ -292,7 +295,9 @@
   {% endfor %}
 </section>
 {% endif %}
+{% endmacro %}
 
+{% macro section_projects() %}
 {% if projects %}
 <section>
   <div class="bar"><h2>Technical Projects</h2></div>
@@ -312,7 +317,9 @@
   {% endfor %}
 </section>
 {% endif %}
+{% endmacro %}
 
+{% macro section_certifications() %}
 {% if certifications %}
 <section>
   <div class="bar"><h2>Certifications</h2></div>
@@ -323,7 +330,9 @@
   </ul>
 </section>
 {% endif %}
+{% endmacro %}
 
+{% macro section_education() %}
 {% if education %}
 <section>
   <div class="bar"><h2>Education</h2></div>
@@ -340,20 +349,41 @@
   </ul>
 </section>
 {% endif %}
+{% endmacro %}
 
+{% macro section_skills() %}
 {% if skills_flat %}
 <section>
   <div class="bar"><h2>Skills</h2></div>
   <p class="skills-line">{{ skills_flat | join(" &middot; ") }}</p>
 </section>
 {% endif %}
+{% endmacro %}
 
+{% macro section_languages() %}
 {% if languages %}
 <section>
   <div class="bar"><h2>Languages</h2></div>
   <p class="skills-line">{{ languages | join(" &middot; ") }}</p>
 </section>
 {% endif %}
+{% endmacro %}
+
+{% set section_macros = {
+  "summary": section_summary,
+  "experience": section_experience,
+  "projects": section_projects,
+  "certifications": section_certifications,
+  "education": section_education,
+  "skills": section_skills,
+  "languages": section_languages,
+} %}
+
+{% for section_id in section_order %}
+{% if section_id not in hidden_sections and section_id in section_macros %}
+{{ section_macros[section_id]() }}
+{% endif %}
+{% endfor %}
 
 </body>
 </html>

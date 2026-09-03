@@ -2,6 +2,14 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+# Must match app/render_resume.py's DEFAULT_SECTION_ORDER - duplicated
+# rather than imported so this schema module has no hard dependency on
+# app.render_resume (which the rest of the backend treats as optional,
+# see routers/generate.py's try/except around importing it).
+DEFAULT_SECTION_ORDER = [
+    "summary", "experience", "projects", "certifications", "education", "skills", "languages",
+]
+
 
 class GenerateRequest(BaseModel):
     job_description: str
@@ -53,6 +61,17 @@ class MasterResume(BaseModel):
     certifications: list[str] = Field(default_factory=list)
 
 
+# --- Editing a single already-generated resume (from History) ---
+
+class EditableResume(MasterResume):
+    """A tailored resume as stored in generation_history, plus per-render
+    layout metadata - which sections to show and in what order. Not part
+    of MasterResume: this is a property of one rendered PDF, not something
+    the master source-of-truth needs."""
+    section_order: list[str] = Field(default_factory=lambda: list(DEFAULT_SECTION_ORDER))
+    hidden_sections: list[str] = Field(default_factory=list)
+
+
 # --- History / version list responses ---
 
 class HistoryItem(BaseModel):
@@ -62,6 +81,10 @@ class HistoryItem(BaseModel):
     status: str
     has_pdf: bool
     error_message: Optional[str] = None
+
+
+class HistoryDetail(HistoryItem):
+    data: Optional[dict] = None
 
 
 class MasterResumeVersion(BaseModel):

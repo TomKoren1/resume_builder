@@ -167,3 +167,39 @@ def get_history_pdf(history_id):
         return row["pdf"] if row and row["pdf"] is not None else None
     finally:
         conn.close()
+
+
+def get_history_entry(history_id):
+    """Full row (unlike list_history()'s lighter list-view projection),
+    for opening a specific past generation in the editor."""
+    conn = _connect()
+    try:
+        row = conn.execute(
+            """SELECT id, created_at, job_description, status,
+                      (pdf IS NOT NULL) AS has_pdf, error_message, tailored_resume
+               FROM generation_history WHERE id = ?""",
+            (history_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        entry = dict(row)
+        entry["data"] = json.loads(entry.pop("tailored_resume")) if entry["tailored_resume"] else None
+        return entry
+    finally:
+        conn.close()
+
+
+def update_history(history_id, tailored_resume, pdf_bytes):
+    """Overwrite an existing entry's content/PDF in place (the "Save" path
+    for editing a past generation - as opposed to insert_history(), which
+    always creates a new row, used for "Save As")."""
+    conn = _connect()
+    try:
+        cur = conn.execute(
+            "UPDATE generation_history SET tailored_resume = ?, pdf = ?, status = 'success', error_message = NULL WHERE id = ?",
+            (json.dumps(tailored_resume), pdf_bytes, history_id),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()

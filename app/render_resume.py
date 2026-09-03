@@ -26,6 +26,14 @@ PX_PER_IN = 96
 CONTENT_WIDTH_PX = round((PAGE_WIDTH_IN - MARGIN_LEFT_RIGHT_IN) * PX_PER_IN)
 CONTENT_HEIGHT_PX = round((PAGE_HEIGHT_IN - MARGIN_TOP_BOTTOM_IN) * PX_PER_IN)
 
+# The order template.html renders sections in when a resume JSON doesn't
+# specify its own (every resume generated before per-entry section
+# editing existed, plus every /generate call, which tailors from the
+# master resume and never sets these).
+DEFAULT_SECTION_ORDER = [
+    "summary", "experience", "projects", "certifications", "education", "skills", "languages",
+]
+
 # Playwright's page.pdf(scale=...) floor; below this the text becomes too
 # small to be a usable resume, so we'd rather fail loudly than ship it.
 MIN_PRINT_SCALE = 0.75
@@ -132,6 +140,8 @@ def render_resume(resume_json_path, template_path, output_pdf_path):
 
     validate_resume_data(resume_data)
     resume_data["skills_flat"] = flatten_skills(resume_data.get("skills"))
+    resume_data.setdefault("section_order", DEFAULT_SECTION_ORDER)
+    resume_data.setdefault("hidden_sections", [])
 
     # Contact links: LinkedIn/GitHub are stored as bare-or-schemed URLs;
     # the template shows a short label ("LinkedIn"/"GitHub") that links here.

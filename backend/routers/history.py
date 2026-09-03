@@ -1,15 +1,44 @@
-from fastapi import APIRouter, HTTPException, Response
+import json
+from pathlib import Path
+
+from fastapi import APIRouter, HTTPException, Request, Response
 
 from .. import db
-from ..schemas import HistoryItem
+from ..config import PDF_SCRATCH_PATH, TAILORED_OUTPUT_PATH, TEMPLATE_PATH
+from ..schemas import EditableResume, HistoryDetail, HistoryItem
+
+try:
+    from app.render_resume import render_resume
+except ImportError:
+    render_resume = None
 
 router = APIRouter()
+
+
+def _render_edited_resume(resume: EditableResume):
+    """Writes the edited resume to the scratch JSON path, renders it to
+    PDF via the same render_resume() /generate uses, and returns the raw
+    PDF bytes. Raises if PDF rendering isn't available in this build."""
+    if render_resume is None:
+        raise HTTPException(status_code=500, detail="PDF rendering unavailable.")
+    with open(TAILORED_OUTPUT_PATH, "w", encoding="utf-8") as f:
+        json.dump(resume.model_dump(), f, indent=4)
+    render_resume(TAILORED_OUTPUT_PATH, TEMPLATE_PATH, PDF_SCRATCH_PATH)
+    return Path(PDF_SCRATCH_PATH).read_bytes()
 
 
 @router.get("/history", response_model=list[HistoryItem])
 def get_history():
     """List every past generation attempt (success and error), newest first."""
     return db.list_history()
+
+
+@router.get("/history/{history_id}", response_model=HistoryDetail)
+def get_history_detail(history_id: int):
+    entry = db.get_history_entry(history_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="No such history entry.")
+    return entry
 
 
 @router.get("/history/{history_id}/download")
@@ -20,3 +49,41 @@ def download_history_pdf(history_id: int):
     return Response(pdf_bytes, media_type="application/pdf", headers={
         "Content-Disposition": f'attachment; filename="resume-{history_id}.pdf"'
     })
+
+
+@router.put("/history/{history_id}")
+def update_history_entry(history_id: int, resume: EditableResume, http_request: Request):
+    """Overwrites this history entry's content and PDF in place - editing
+    a past generation, not the master resume (which /master-resume owns)."""
+    existing = db.get_history_entry(history_id)
+    if existing is None:
+        raise HTTPException(status_code=404, detail="No such history entry.")
+
+    pdf_bytes = _render_edited_resume(resume)
+    db.update_history(history_id, resume.model_dump(), pdf_bytes)
+
+    return {
+        "message": "Saved.",
+        "download_url": str(http_request.base_url) + f"history/{history_id}/download",
+    }
+
+
+@router.post("/history/{history_id}/save-as")
+def save_history_entry_as_new(history_id: int, resume: EditableResume, http_request: Request):
+    """Same edit, but as a new history entry - the original generation
+    (and its PDF) is left untouched."""
+    existing = db.get_history_entry(history_id)
+    if existing is None:
+        raise HTTPException(status_code=404, detail="No such history entry.")
+
+    pdf_bytes = _render_edited_resume(resume)
+    new_id = db.insert_history(
+        existing["job_description"], status='success',
+        tailored_resume=resume.model_dump(), pdf_bytes=pdf_bytes,
+    )
+
+    return {
+        "message": "Saved as a new history entry.",
+        "history_id": new_id,
+        "download_url": str(http_request.base_url) + f"history/{new_id}/download",
+    }
