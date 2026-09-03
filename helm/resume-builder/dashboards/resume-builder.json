@@ -102,6 +102,40 @@
           "expr": "{namespace=\"resume-builder\", app=~\"backend|frontend\"}"
         }
       ]
+    },
+    {
+      "id": 7,
+      "title": "Active alerts (pending/firing)",
+      "description": "Same alerts that post to Slack via Alertmanager - Prometheus exposes each alert rule's live state as the ALERTS metric.",
+      "type": "table",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 36 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "expr": "ALERTS{alertstate=~\"pending|firing\"}",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        { "id": "organize", "options": { "excludeByName": { "Time": true, "Value": true, "__name__": true } } }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Alert state timeline",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 42 },
+      "fieldConfig": { "defaults": { "min": 0, "max": 1 }, "overrides": [] },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "expr": "ALERTS{alertstate=~\"pending|firing\"}",
+          "legendFormat": "{{alertname}} ({{alertstate}})"
+        }
+      ]
     }
   ]
 }

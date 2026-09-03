@@ -59,6 +59,16 @@ grafana:
           type: loki
           url: http://{{ .Release.Name }}-loki:3100
           access: proxy
+        # Powers Grafana's native Alerting -> Alertmanager page, so firing/
+        # silenced alerts (the same ones posted to Slack) are visible in
+        # Grafana too, not just in the dashboard's ALERTS-metric panels below.
+        - name: Alertmanager
+          uid: Alertmanager
+          type: alertmanager
+          url: http://{{ .Release.Name }}-alertmanager:9093
+          access: proxy
+          jsonData:
+            implementation: prometheus
   # Auto-provision the app dashboard from templates/grafana-dashboard-configmap.yaml
   sidecar:
     dashboards:
