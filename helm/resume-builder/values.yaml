@@ -5,7 +5,7 @@ backend:
   replicaCount: 1
   image:
     repository: ghcr.io/tomkoren1/resume-backend # built + pushed by .github/workflows/build-and-deploy.yml
-    tag: "sha-056b48f" # bumped automatically by CI - do not edit by hand
+    tag: "sha-1dba121" # bumped automatically by CI - do not edit by hand
     pullPolicy: IfNotPresent
   service:
     port: 8000
@@ -16,7 +16,6 @@ backend:
     # ANTHROPIC_API_KEY / RESUME_EMAIL / RESUME_PHONE / SLACK_WEBHOOK come from
     # the SealedSecret in templates/backend-sealedsecret.yaml, never from here.
   # irsaRoleArn: only meaningful on EKS - leave unset on k3s (see serviceaccount.yaml)
-
 frontend:
   replicaCount: 1
   image:
@@ -25,10 +24,8 @@ frontend:
     pullPolicy: IfNotPresent
   service:
     port: 80
-
 ingress:
   host: resume.local
-
 # Dependency Configurations (Overrides for the community charts)
 grafana:
   enabled: true
@@ -51,23 +48,22 @@ grafana:
     datasources.yaml:
       apiVersion: 1
       datasources:
-      - name: Prometheus
-        uid: Prometheus
-        type: prometheus
-        url: http://{{ .Release.Name }}-prometheus-server
-        access: proxy
-        isDefault: true
-      - name: Loki
-        uid: Loki
-        type: loki
-        url: http://{{ .Release.Name }}-loki:3100
-        access: proxy
+        - name: Prometheus
+          uid: Prometheus
+          type: prometheus
+          url: http://{{ .Release.Name }}-prometheus-server
+          access: proxy
+          isDefault: true
+        - name: Loki
+          uid: Loki
+          type: loki
+          url: http://{{ .Release.Name }}-loki:3100
+          access: proxy
   # Auto-provision the app dashboard from templates/grafana-dashboard-configmap.yaml
   sidecar:
     dashboards:
       enabled: true
       label: grafana_dashboard
-
 prometheus:
   enabled: true
   server:
@@ -126,7 +122,7 @@ prometheus:
           slack_configs:
             - send_resolved: true
               color: '{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}'
-              title: '{{ if eq .Status "firing" }}🔴 FIRING{{ else }}✅ RESOLVED{{ end }}: {{ .CommonAnnotations.summary }}'
+              title: "{{ if eq .Status \"firing\" }}\U0001F534 FIRING{{ else }}✅ RESOLVED{{ end }}: {{ .CommonAnnotations.summary }}"
               text: "{{ .CommonAnnotations.description }}"
     extraSecretMounts:
       - name: alertmanager-slack-webhook
@@ -134,7 +130,6 @@ prometheus:
         subPath: ""
         secretName: resume-builder-secrets
         readOnly: true
-
 loki-stack:
   enabled: true
   loki:
