@@ -6,7 +6,7 @@ the app it deploys.
 
 | File | Purpose | Applied |
 |---|---|---|
-| `application.yaml` | The `Application` resource: watches `helm/resume-builder` on `main`, auto-syncs with `prune: true` + `selfHeal: true`, into the `resume-builder` namespace. | `kubectl apply -f argocd/application.yaml` |
+| `application.yaml` | The `Application` resource: watches `helm/resume-builder` on `main`, auto-syncs with `prune: true` + `selfHeal: true`, into the `resume-builder` namespace. `spec.source.helm.valueFiles` also points it at `values-monitoring.yaml` (Helm/ArgoCD always load the chart's own `values.yaml` as the base regardless, so only the extra file needs listing) — see [`../helm/resume-builder/README.md`](../helm/resume-builder/README.md) for why that's split out. | `kubectl apply -f argocd/application.yaml` |
 | `values.yaml` | Helm values for the ArgoCD **installation itself** (plain HTTP server, metrics enabled on controller/server/repo-server, notifications wiring). | `helm upgrade argocd argo/argo-cd -n argocd -f argocd/values.yaml` |
 | `notifications-sealedsecret.yaml` | The Slack webhook URL, sealed, for ArgoCD's own notifications controller. | `kubectl apply -f argocd/notifications-sealedsecret.yaml` |
 
@@ -41,7 +41,18 @@ Enabled via `values.yaml`'s `metrics.enabled` per-component (not on by
 default upstream), scraped by the same annotation-based Prometheus job as
 everything else in this cluster. Alert rules for it
 (`ArgoCDComponentDown`, `ArgoAppOutOfSync`, `ArgoAppDegraded`) live in
-`helm/resume-builder/values.yaml` — see that folder's README.
+`helm/resume-builder/values-monitoring.yaml` — see that folder's README.
+
+One thing worth knowing if you're ever testing an alert that depends on
+this `Application`'s own live state (e.g. scaling a Deployment to 0 to
+fire `BackendDown`): `selfHeal: true` reacts within **seconds**, not the
+~3 minute poll interval — it reverted a manual `kubectl scale` back to
+the git-declared replica count in about 5 seconds during testing, well
+under any alert's `for:` duration. To test something like that reliably,
+temporarily clear the sync policy (`kubectl patch application
+resume-builder -n argocd --type merge -p '{"spec":{"syncPolicy":null}}'`),
+run the test, then restore it (same command with the automated block from
+`application.yaml` put back).
 
 ## Slack notifications
 
