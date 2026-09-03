@@ -1,0 +1,113 @@
+name: Build and Deploy
+
+# Builds+pushes whichever of backend/frontend changed, then bumps its tag in
+# helm/resume-builder/values.yaml and pushes that to main. ArgoCD (running
+# in-cluster) picks up the values.yaml change and syncs it - this workflow
+# never touches the cluster directly.
+#
+# The paths filter below is also what prevents an infinite loop: the bump
+# commit this workflow makes only touches helm/resume-builder/values.yaml,
+# which never matches these paths, so it can't re-trigger itself. The
+# "[skip ci]" in the bump commit message is a second, independent guard
+# (GitHub natively skips runs on head commits containing it).
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "frontend/**"
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  BACKEND_IMAGE: ghcr.io/tomkoren1/resume-backend
+  FRONTEND_IMAGE: ghcr.io/tomkoren1/resume-frontend
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+            frontend:
+              - 'frontend/**'
+
+  build-backend:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: tag
+        run: echo "tag=sha-${GITHUB_SHA:0:7}" >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: backend/dockerfile
+          push: true
+          tags: ${{ env.BACKEND_IMAGE }}:${{ steps.tag.outputs.tag }}
+
+  build-frontend:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: tag
+        run: echo "tag=sha-${GITHUB_SHA:0:7}" >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v5
+        with:
+          context: frontend
+          file: frontend/dockerfile
+          push: true
+          tags: ${{ env.FRONTEND_IMAGE }}:${{ steps.tag.outputs.tag }}
+
+  update-chart:
+    needs: [build-backend, build-frontend]
+    if: always() && (needs.build-backend.result == 'success' || needs.build-frontend.result == 'success')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+      - name: Bump backend image tag
+        if: needs.build-backend.result == 'success'
+        run: yq -i '.backend.image.tag = "${{ needs.build-backend.outputs.tag }}"' helm/resume-builder/values.yaml
+      - name: Bump frontend image tag
+        if: needs.build-frontend.result == 'success'
+        run: yq -i '.frontend.image.tag = "${{ needs.build-frontend.outputs.tag }}"' helm/resume-builder/values.yaml
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add helm/resume-builder/values.yaml
+          git diff --cached --quiet || git commit -m "chore: bump image tag(s) [skip ci]"
+          git push

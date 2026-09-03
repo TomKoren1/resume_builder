@@ -4,9 +4,9 @@
 backend:
   replicaCount: 1
   image:
-    repository: resume-backend # built locally + imported into k3s containerd
-    tag: "local"
-    pullPolicy: Never
+    repository: ghcr.io/tomkoren1/resume-backend # built + pushed by .github/workflows/build-and-deploy.yml
+    tag: "sha-056b48f" # bumped automatically by CI - do not edit by hand
+    pullPolicy: IfNotPresent
   service:
     port: 8000
   persistence:
@@ -20,8 +20,9 @@ backend:
 frontend:
   replicaCount: 1
   image:
-    repository: resume-frontend # built locally + imported into k3s containerd
-    tag: "local"
+    repository: ghcr.io/tomkoren1/resume-frontend # built + pushed by .github/workflows/build-and-deploy.yml
+    tag: "sha-056b48f" # bumped automatically by CI - do not edit by hand
+    pullPolicy: IfNotPresent
   service:
     port: 80
 
