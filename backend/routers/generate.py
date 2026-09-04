@@ -2,13 +2,15 @@ import json
 import os
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from .. import db
+from ..auth import get_current_user_with_key
 from ..config import PDF_SCRATCH_PATH, TAILORED_OUTPUT_PATH, TEMPLATE_PATH
 from ..llm import tailor_resume
 from ..notifications import notify_slack
 from ..observability import GENERATE_COUNT, logger
+from ..rate_limit import limiter
 from ..schemas import GenerateRequest
 
 try:
@@ -26,18 +28,20 @@ router = APIRouter()
 
 
 @router.post("/generate")
-def generate_resume(body: GenerateRequest, http_request: Request):
-    logger.info("Received resume generation request.")
+@limiter.limit("10/hour")
+def generate_resume(body: GenerateRequest, request: Request, user: tuple = Depends(get_current_user_with_key)):
+    user_id, anthropic_api_key = user
+    logger.info(f"Received resume generation request from user {user_id}.")
 
-    master_resume_dict = db.get_current_master_resume()
+    master_resume_dict = db.get_current_master_resume(user_id)
     if master_resume_dict is None:
         GENERATE_COUNT.labels(status='error').inc()
-        db.insert_history(body.job_description, status='error', error_message="No master resume stored.")
-        logger.error("No master resume stored in the database.")
-        raise HTTPException(status_code=500, detail="No master resume stored.")
+        db.insert_history(user_id, body.job_description, status='error', error_message="No master resume stored.")
+        logger.error(f"No master resume stored for user {user_id}.")
+        raise HTTPException(status_code=400, detail="No master resume stored. Fill one in under Edit Master Resume first.")
 
     try:
-        tailored_resume_dict = tailor_resume(master_resume_dict, body.job_description)
+        tailored_resume_dict = tailor_resume(master_resume_dict, body.job_description, anthropic_api_key=anthropic_api_key)
         apply_contact_overrides(tailored_resume_dict)
 
         # Save to disk as originally intended
@@ -58,10 +62,10 @@ def generate_resume(body: GenerateRequest, http_request: Request):
                 logger.error(f"PDF render failed: {e}")
 
         history_id = db.insert_history(
-            body.job_description, status='success',
+            user_id, body.job_description, status='success',
             tailored_resume=tailored_resume_dict, pdf_bytes=pdf_bytes,
         )
-        download_url = str(http_request.base_url) + f"history/{history_id}/download" if pdf_bytes else None
+        download_url = str(request.base_url) + f"history/{history_id}/download" if pdf_bytes else None
 
         if download_url:
             notify_slack(f"✅ Resume generated: {download_url}")
@@ -76,11 +80,11 @@ def generate_resume(body: GenerateRequest, http_request: Request):
 
     except json.JSONDecodeError:
         GENERATE_COUNT.labels(status='error').inc()
-        db.insert_history(body.job_description, status='error', error_message="The model did not return valid JSON.")
+        db.insert_history(user_id, body.job_description, status='error', error_message="The model did not return valid JSON.")
         logger.error("LLM did not return valid JSON.")
         raise HTTPException(status_code=500, detail="The model did not return valid JSON.")
     except Exception as e:
         GENERATE_COUNT.labels(status='error').inc()
-        db.insert_history(body.job_description, status='error', error_message=str(e))
+        db.insert_history(user_id, body.job_description, status='error', error_message=str(e))
         logger.error(f"API Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))

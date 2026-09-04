@@ -18,9 +18,16 @@ backend:
     size: 1Gi
   env:
     awsRegion: "us-east-1"
-    # ANTHROPIC_API_KEY / RESUME_EMAIL / RESUME_PHONE / SLACK_WEBHOOK come from
-    # the SealedSecret in templates/backend-sealedsecret.yaml, never from here.
+    # ANTHROPIC_API_KEY / RESUME_EMAIL / RESUME_PHONE / SLACK_WEBHOOK /
+    # SESSION_SECRET_KEY / API_KEY_ENCRYPTION_KEY / GOOGLE_CLIENT_ID /
+    # GOOGLE_CLIENT_SECRET / GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET come
+    # from the SealedSecret in templates/backend-sealedsecret.yaml, never
+    # from here.
   # irsaRoleArn: only meaningful on EKS - leave unset on k3s (see serviceaccount.yaml)
+  # Must stay "false" until Cloudflare Tunnel fronts this with real HTTPS
+  # (Phase 4 of the public-multi-user plan) - browsers silently drop
+  # Secure cookies over plain HTTP (what Tailscale/.local serves today).
+  sessionCookieSecure: "false"
 frontend:
   replicaCount: 1
   image:

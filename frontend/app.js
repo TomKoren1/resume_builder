@@ -22,14 +22,43 @@ function showView(viewName) {
     document.getElementById('view-' + viewName).classList.add('active');
 }
 
+// Wraps fetch() with the one thing every backend call needs now: sending
+// the session cookie (httpOnly, so JS can't read/attach it manually) and
+// bouncing to the login view on a 401 instead of every call site having
+// to check for that itself. Drop-in replacement for fetch() - still
+// returns the Response, callers still do their own res.json()/res.ok.
+async function apiFetch(url, opts = {}) {
+    const res = await fetch(url, { ...opts, credentials: 'include' });
+    if (res.status === 401) {
+        showView('login');
+        throw new Error('Not logged in.');
+    }
+    return res;
+}
+
 // ---------- Tab switching ----------
 document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         showView(btn.dataset.view);
         if (btn.dataset.view === 'history') loadHistory();
         if (btn.dataset.view === 'edit') loadMasterResume();
+        if (btn.dataset.view === 'account') loadAccount();
     });
 });
+
+// ---------- Session check (app init) ----------
+// Gates the whole app behind login: on load, ask the backend who (if
+// anyone) is signed in. A 401 here throws inside apiFetch and lands in
+// the catch below - showView('login') already ran by the time we get
+// there, so this is just "don't also try to render the generate view".
+(async () => {
+    try {
+        const res = await apiFetch('/auth/me');
+        await res.json();
+    } catch (e) {
+        // Already on the login view via apiFetch's 401 handling.
+    }
+})();
 
 // ---------- Generate ----------
 document.getElementById('resumeForm').addEventListener('submit', async (e) => {
@@ -45,7 +74,7 @@ document.getElementById('resumeForm').addEventListener('submit', async (e) => {
     responseDiv.textContent = 'Contacting AWS Bedrock...';
 
     try {
-        const res = await fetch('/generate', {
+        const res = await apiFetch('/generate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ job_description: jobDesc })
@@ -73,7 +102,7 @@ async function loadHistory() {
     const el = document.getElementById('historyList');
     el.textContent = 'Loading...';
     try {
-        const res = await fetch('/history');
+        const res = await apiFetch('/history');
         const items = await res.json();
         if (!items.length) {
             el.textContent = 'No resumes generated yet.';
@@ -133,6 +162,74 @@ async function loadHistory() {
         el.textContent = `Error loading history: ${error.message}`;
     }
 }
+
+// ---------- Account ----------
+async function loadAccount() {
+    const infoEl = document.getElementById('accountInfo');
+    infoEl.textContent = 'Loading...';
+    try {
+        const res = await apiFetch('/auth/me');
+        const user = await res.json();
+        infoEl.innerHTML = '';
+        const name = document.createElement('p');
+        name.textContent = user.display_name || user.email || `User #${user.id}`;
+        const email = document.createElement('p');
+        email.className = 'hint';
+        email.textContent = user.email || '';
+        infoEl.appendChild(name);
+        infoEl.appendChild(email);
+
+        const apiKeyInput = document.getElementById('apiKeyInput');
+        apiKeyInput.value = '';
+        apiKeyInput.placeholder = user.has_api_key ? 'Key saved - enter a new one to replace it' : 'sk-ant-...';
+        document.getElementById('removeApiKeyBtn').disabled = !user.has_api_key;
+    } catch (error) {
+        infoEl.textContent = `Error loading account: ${error.message}`;
+    }
+}
+
+function setAccountStatus(message, isError) {
+    const statusEl = document.getElementById('accountStatus');
+    statusEl.textContent = message;
+    statusEl.className = isError ? 'error' : 'success';
+}
+
+document.getElementById('saveApiKeyBtn').addEventListener('click', async () => {
+    const input = document.getElementById('apiKeyInput');
+    const key = input.value.trim();
+    if (!key) {
+        setAccountStatus('Enter an API key first.', true);
+        return;
+    }
+    try {
+        const res = await apiFetch('/auth/api-key', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ anthropic_api_key: key }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(formatApiError(data, 'Failed to save key.'));
+        setAccountStatus(`Saved (${data.masked}).`, false);
+        loadAccount();
+    } catch (error) {
+        setAccountStatus(`Error: ${error.message}`, true);
+    }
+});
+
+document.getElementById('removeApiKeyBtn').addEventListener('click', async () => {
+    try {
+        await apiFetch('/auth/api-key', { method: 'DELETE' });
+        setAccountStatus('Key removed.', false);
+        loadAccount();
+    } catch (error) {
+        setAccountStatus(`Error: ${error.message}`, true);
+    }
+});
+
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+    await apiFetch('/auth/logout', { method: 'POST' });
+    location.reload();
+});
 
 // ---------- Shared resume-form building blocks ----------
 // Used by both the master-resume editor and the per-history-entry editor -
@@ -440,7 +537,7 @@ async function loadMasterResume() {
     const form = document.getElementById('masterResumeForm');
     form.innerHTML = 'Loading...';
     try {
-        const res = await fetch('/master-resume');
+        const res = await apiFetch('/master-resume');
         const resume = await res.json();
         renderMasterResumeForm(resume);
         loadVersions();
@@ -466,7 +563,7 @@ document.getElementById('masterResumeForm').addEventListener('submit', async (e)
     const resume = collectResumeFields(form);
 
     try {
-        const res = await fetch('/master-resume', {
+        const res = await apiFetch('/master-resume', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(resume),
@@ -486,7 +583,7 @@ async function loadVersions() {
     const el = document.getElementById('versionList');
     el.textContent = 'Loading...';
     try {
-        const res = await fetch('/master-resume/versions');
+        const res = await apiFetch('/master-resume/versions');
         const versions = await res.json();
         el.innerHTML = '';
         for (const v of versions) {
@@ -516,7 +613,7 @@ async function loadVersions() {
 async function restoreVersion(id) {
     const statusEl = document.getElementById('editStatus');
     try {
-        const res = await fetch(`/master-resume/versions/${id}/restore`, { method: 'POST' });
+        const res = await apiFetch(`/master-resume/versions/${id}/restore`, { method: 'POST' });
         const data = await res.json();
         if (!res.ok) throw new Error(formatApiError(data, 'Restore failed'));
         statusEl.className = 'success';
@@ -881,7 +978,7 @@ async function openHistoryEditor(id) {
     statusEl.textContent = '';
 
     try {
-        const res = await fetch(`/history/${id}`);
+        const res = await apiFetch(`/history/${id}`);
         const entry = await res.json();
         if (!res.ok) throw new Error(formatApiError(entry, 'Failed to load'));
 
@@ -929,7 +1026,7 @@ async function saveHistoryEdit(asNew) {
     const method = asNew ? 'POST' : 'PUT';
 
     try {
-        const res = await fetch(url, {
+        const res = await apiFetch(url, {
             method,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(resume),

@@ -1,13 +1,18 @@
 from fastapi import FastAPI, Response
-from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from prometheus_fastapi_instrumentator import Instrumentator
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from starlette.middleware.sessions import SessionMiddleware
 
-from . import db
+from . import config, db
 from .observability import logger
-from .routers import generate, history, master_resume
+from .rate_limit import limiter
+from .routers import auth, generate, history, master_resume
 
 app = FastAPI()
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Generic per-route request count/latency metrics for every endpoint (the
 # app's own GENERATE_COUNT/LLM_LATENCY in observability.py only ever covered
@@ -23,15 +28,23 @@ def _startup():
     logger.info("Backend started via GitOps (CI build + ArgoCD sync).")
 
 
-# Allow the frontend to communicate with this backend
+# Signed httpOnly session cookie (holds only {"user_id": int}) - replaces
+# the old CORSMiddleware entirely. Frontend and backend are, and always
+# will be, served same-origin through one Ingress host (see
+# helm/resume-builder/README.md), so there's no cross-origin request to
+# configure CORS for - and the previous allow_origins=["*"] +
+# allow_credentials=True combination is actively invalid once cookies are
+# in play (browsers refuse to honor credentialed responses with a
+# wildcard origin).
 app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    SessionMiddleware,
+    secret_key=config.SESSION_SECRET_KEY,
+    session_cookie="session",
+    same_site="lax",
+    https_only=config.SESSION_COOKIE_SECURE,
 )
 
+app.include_router(auth.router)
 app.include_router(generate.router)
 app.include_router(history.router)
 app.include_router(master_resume.router)

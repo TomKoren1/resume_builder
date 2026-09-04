@@ -28,11 +28,16 @@ def call_bedrock(user_text):
     return response['output']['message']['content'][0]['text']
 
 
-def call_anthropic_api(user_text):
+def call_anthropic_api(user_text, api_key=None):
     import anthropic
-    if not config.ANTHROPIC_API_KEY:
-        raise RuntimeError("ANTHROPIC_API_KEY is not set.")
-    client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
+    # api_key is the caller's own key for the multi-user web app (BYOK -
+    # see backend/auth.py); falls back to the shared server-side key only
+    # for the standalone CLI pipeline (backend/tailor_cli.py), which has
+    # no per-user concept at all.
+    key = api_key or config.ANTHROPIC_API_KEY
+    if not key:
+        raise RuntimeError("No Anthropic API key available.")
+    client = anthropic.Anthropic(api_key=key)
     response = client.messages.create(
         model=config.ANTHROPIC_MODEL_ID,
         max_tokens=4096,
@@ -42,11 +47,17 @@ def call_anthropic_api(user_text):
     return response.content[0].text
 
 
-def tailor_resume(master_resume, job_description):
+def tailor_resume(master_resume, job_description, anthropic_api_key=None):
     """Calls Bedrock first, falls back to the Anthropic API on any AWS
     error, strips a ```json markdown fence if present, and returns the
     parsed tailored resume dict. Raises json.JSONDecodeError if the model
-    didn't return valid JSON, or the underlying LLM exception otherwise."""
+    didn't return valid JSON, or the underlying LLM exception otherwise.
+
+    anthropic_api_key: the calling user's own key (multi-user web app
+    only - see routers/generate.py). Bedrock stays the shared,
+    server-side-credentialed first attempt either way; only the
+    Anthropic fallback becomes per-user.
+    """
     user_text = (
         f"Here is my master JSON resume:\n{json.dumps(master_resume)}\n\n"
         f"Here is the target job description:\n{job_description}"
@@ -59,7 +70,7 @@ def tailor_resume(master_resume, job_description):
         except (ClientError, BotoCoreError) as e:
             logger.warning(f"Bedrock failed ({e}); falling back to Anthropic API...")
             with LLM_LATENCY.labels(provider='anthropic').time():
-                response_text = call_anthropic_api(user_text)
+                response_text = call_anthropic_api(user_text, api_key=anthropic_api_key)
 
     response_text = response_text.strip()
     if response_text.startswith("```"):

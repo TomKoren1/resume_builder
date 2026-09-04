@@ -36,6 +36,8 @@ spec:
               value: "http://{{ .Release.Name }}-loki:3100/loki/api/v1/push"
             - name: DB_PATH
               value: "/data/resume_builder.db"
+            - name: SESSION_COOKIE_SECURE
+              value: {{ .Values.backend.sessionCookieSecure | default "false" | quote }}
           envFrom:
             - secretRef:
                 name: {{ include "resume-builder.fullname" . }}-secrets

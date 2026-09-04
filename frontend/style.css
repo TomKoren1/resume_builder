@@ -392,3 +392,39 @@ form#resumeForm button { width: 100%; margin-top: 0.5rem; }
     .editor-layout { flex-direction: column; }
     .editor-sidebar { position: static; width: 100%; flex-basis: auto; }
 }
+
+/* Login + Account */
+.login-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+}
+
+.oauth-btn {
+    display: block;
+    text-align: center;
+    padding: 0.75rem;
+    border-radius: 6px;
+    font-weight: 600;
+    text-decoration: none;
+    color: #fff;
+}
+
+.oauth-google { background: #4285f4; }
+.oauth-google:hover { background: #3367d6; }
+.oauth-github { background: #24292f; }
+.oauth-github:hover { background: #1a1e22; }
+
+#accountStatus {
+    padding: 0.6rem 0.9rem;
+    border-radius: 6px;
+    margin: 0.75rem 0;
+    display: none;
+    font-size: 0.9rem;
+}
+
+#accountStatus.success { display: block; background: #e5f7ec; color: var(--success); }
+#accountStatus.error { display: block; background: #fbeaea; color: var(--error); }
+
+#accountInfo p { margin: 0.3rem 0; }

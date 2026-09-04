@@ -12,9 +12,25 @@
         <button class="tab-btn active" data-view="generate">Generate</button>
         <button class="tab-btn" data-view="history">History</button>
         <button class="tab-btn" data-view="edit">Edit Master Resume</button>
+        <button class="tab-btn" data-view="account">Account</button>
     </nav>
 
     <main>
+        <section id="view-login" class="view">
+            <div class="container">
+                <h2>Sign in</h2>
+                <p class="hint">Sign in to generate and manage your own resumes. Nothing is shared between accounts.</p>
+                <div class="login-buttons">
+                    <!-- Google OAuth needs a real public-TLD domain (Phase 4) -
+                         resume.local gets rejected by Google's redirect URI
+                         validation. Re-enable once that domain exists:
+                    <a class="oauth-btn oauth-google" href="/auth/login/google">Sign in with Google</a>
+                    -->
+                    <a class="oauth-btn oauth-github" href="/auth/login/github">Sign in with GitHub</a>
+                </div>
+            </div>
+        </section>
+
         <section id="view-generate" class="view active">
             <div class="container">
                 <h2>Generate Tailored Resume</h2>
@@ -42,6 +58,26 @@
 
                 <h3>Version History</h3>
                 <div id="versionList" class="version-list">Loading...</div>
+            </div>
+        </section>
+
+        <section id="view-account" class="view">
+            <div class="container">
+                <h2>Account</h2>
+                <div id="accountStatus"></div>
+                <div id="accountInfo"></div>
+
+                <h3>Anthropic API Key</h3>
+                <p class="hint">Your own key, used only for your generations - never shown back to you once saved.</p>
+                <label for="apiKeyInput">API Key</label>
+                <input type="password" id="apiKeyInput" placeholder="sk-ant-...">
+                <div class="edit-actions">
+                    <button type="button" id="saveApiKeyBtn">Save Key</button>
+                    <button type="button" id="removeApiKeyBtn" class="danger-outline">Remove Key</button>
+                </div>
+
+                <h3>Session</h3>
+                <button type="button" id="logoutBtn" class="secondary">Log Out</button>
             </div>
         </section>
 
