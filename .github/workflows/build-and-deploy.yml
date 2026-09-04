@@ -5,6 +5,15 @@ name: Build and Deploy
 # in-cluster) picks up the values.yaml change and syncs it - this workflow
 # never touches the cluster directly.
 #
+# app/** counts as a "backend" change (not its own category): the backend
+# Dockerfile does `COPY app/ app/`, and it's also what the standalone CLI
+# pipeline (generate-resume.yml) uses - an app/-only push (e.g. editing
+# template.html) needs a backend rebuild just as much as a backend/**
+# change does, or the live pod silently keeps running stale template/
+# render logic. Learned the hard way: an app/+frontend/ push with no
+# backend/** file changed skipped build-backend entirely under the old
+# filter, even though app/ is baked into that same image.
+#
 # The paths filter below is also what prevents an infinite loop: the bump
 # commit this workflow makes only touches helm/resume-builder/values.yaml,
 # which never matches these paths, so it can't re-trigger itself. The
@@ -16,6 +25,7 @@ on:
     paths:
       - "backend/**"
       - "frontend/**"
+      - "app/**"
 
 permissions:
   contents: write
@@ -39,6 +49,7 @@ jobs:
           filters: |
             backend:
               - 'backend/**'
+              - 'app/**'
             frontend:
               - 'frontend/**'
 
