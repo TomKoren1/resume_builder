@@ -18,10 +18,16 @@ DEFAULT_SECTION_TITLES = {
     "skills": "Skills",
     "languages": "Languages",
 }
+# Must match the body.theme-* blocks in app/template.html. An unknown
+# value here just falls back to the :root defaults (classic) - no
+# validation needed, an invalid theme is harmless, not a broken render.
+THEMES = ["classic", "modern", "compact"]
+DEFAULT_THEME = "classic"
 
 
 class GenerateRequest(BaseModel):
     job_description: str
+    theme: str = DEFAULT_THEME
 
 
 # --- Master resume, matching the schema app/template.html renders ---
@@ -80,6 +86,7 @@ class EditableResume(MasterResume):
     section_order: list[str] = Field(default_factory=lambda: list(DEFAULT_SECTION_ORDER))
     hidden_sections: list[str] = Field(default_factory=list)
     section_titles: dict[str, str] = Field(default_factory=lambda: dict(DEFAULT_SECTION_TITLES))
+    theme: str = DEFAULT_THEME
 
 
 # --- History / version list responses ---

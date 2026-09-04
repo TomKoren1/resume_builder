@@ -37,6 +37,13 @@
                 <form id="resumeForm">
                     <label for="jobDescription">Target Job Description:</label>
                     <textarea id="jobDescription" required placeholder="Paste the job description here..."></textarea>
+                    <label for="themeSelect">Template</label>
+                    <select id="themeSelect">
+                        <option value="classic">Classic</option>
+                        <option value="modern">Modern</option>
+                        <option value="compact">Compact</option>
+                    </select>
+                    <p class="hint">Changeable later too, from the History editor.</p>
                     <button type="submit">Generate Resume</button>
                 </form>
                 <div id="response"></div>
@@ -88,6 +95,13 @@
                     <h2>Edit Resume</h2>
                     <div id="historyEditStatus"></div>
                     <p class="hint">Click directly on the page to edit text. Select text and press Ctrl+B (Cmd+B on Mac) to bold it.</p>
+
+                    <h3>Template</h3>
+                    <select id="historyThemeSelect">
+                        <option value="classic">Classic</option>
+                        <option value="modern">Modern</option>
+                        <option value="compact">Compact</option>
+                    </select>
 
                     <h3>Sections</h3>
                     <div id="sectionControls" class="section-controls"></div>

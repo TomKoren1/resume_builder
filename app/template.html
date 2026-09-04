@@ -4,6 +4,58 @@
 <meta charset="UTF-8">
 <title>{{ name }} - Resume</title>
 <style>
+  /* Theme system: a few curated visual presets (see backend/schemas.py's
+     THEMES / app/render_resume.py's DEFAULT_THEME), selected via a
+     body.theme-* class. :root holds the "classic" defaults (also the
+     fallback for an unrecognized theme value); each other theme
+     overrides a handful of custom properties here plus a few structural
+     rules further down (.bar style, alignment, spacing) where a plain
+     color/font swap isn't enough to look genuinely different. Every
+     data-field/data-entry/etc. attribute stays identical across themes -
+     only appearance changes, so the History editor's click-to-edit JS
+     never has to know or care which theme is active. */
+  :root {
+    --font-family: 'Helvetica Neue', Arial, sans-serif;
+    --text-color: #1a2b3c;
+    --muted-text: #333;
+    --muted-text-light: #667;
+    --accent: #2b4f77;
+    --heading-bg: #dce8f2;
+    --heading-text: #16283d;
+    --subtitle-color: #45607d;
+    --base-font-size: 10pt;
+    --section-gap: 8px;
+    --header-align: center;
+    --header-justify: center;
+    --bar-radius: 4px;
+    --bar-padding: 3px 10px;
+  }
+
+  body.theme-modern {
+    --font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --accent: #0f766e;
+    --heading-bg: transparent;
+    --heading-text: #0f766e;
+    --subtitle-color: #0f766e;
+    --header-align: left;
+    --header-justify: flex-start;
+    --bar-radius: 0;
+    --bar-padding: 2px 0 4px;
+  }
+  body.theme-modern .bar { border-bottom: 2px solid var(--accent); }
+  body.theme-modern .bar h2 { text-align: left; }
+  body.theme-modern .profile-text,
+  body.theme-modern .skills-line { text-align: left; }
+
+  body.theme-compact {
+    --base-font-size: 9pt;
+    --section-gap: 5px;
+    --bar-padding: 2px 8px;
+  }
+  body.theme-compact .exp-row { margin-bottom: 4px; }
+  body.theme-compact ul.bullets li { margin-bottom: 1px; }
+  body.theme-compact .project-entry { margin-bottom: 5px; }
+
   @page {
     size: Letter;
     margin: 0.45in 0.55in;
@@ -12,9 +64,9 @@
   * { box-sizing: border-box; }
 
   body {
-    font-family: 'Helvetica Neue', Arial, sans-serif;
-    color: #1a2b3c;
-    font-size: 10pt;
+    font-family: var(--font-family);
+    color: var(--text-color);
+    font-size: var(--base-font-size);
     line-height: 1.32;
     margin: 0;
     /* Distributes any leftover vertical space as extra gaps between the
@@ -31,13 +83,13 @@
   h1, h2, h3, p, ul { margin: 0; }
 
   a {
-    color: #2b4f77;
+    color: var(--accent);
     text-decoration: none;
   }
 
   /* Header */
   header {
-    text-align: center;
+    text-align: var(--header-align);
     margin-bottom: 8px;
   }
 
@@ -49,13 +101,13 @@
 
   .contact-row {
     display: flex;
-    justify-content: center;
+    justify-content: var(--header-justify);
     align-items: center;
     flex-wrap: wrap;
     gap: 16px;
     margin-top: 6px;
     font-size: 8.5pt;
-    color: #333;
+    color: var(--muted-text);
   }
 
   .contact-item {
@@ -72,7 +124,7 @@
     width: 11px;
     height: 11px;
     fill: none;
-    stroke: #2b4f77;
+    stroke: var(--accent);
     stroke-width: 1.8;
   }
 
@@ -80,7 +132,7 @@
     width: 13px;
     height: 13px;
     border-radius: 50%;
-    background: #2b4f77;
+    background: var(--accent);
     color: #fff;
     font-size: 6.5pt;
     font-weight: 700;
@@ -92,7 +144,7 @@
 
   /* Section bars */
   section {
-    margin-bottom: 8px;
+    margin-bottom: var(--section-gap);
   }
 
   section:last-child {
@@ -100,9 +152,9 @@
   }
 
   .bar {
-    background: #dce8f2;
-    border-radius: 4px;
-    padding: 3px 10px;
+    background: var(--heading-bg);
+    border-radius: var(--bar-radius);
+    padding: var(--bar-padding);
     margin-bottom: 6px;
   }
 
@@ -112,12 +164,12 @@
     text-transform: uppercase;
     letter-spacing: 1.5px;
     text-align: center;
-    color: #16283d;
+    color: var(--heading-text);
   }
 
   .profile-text {
     font-size: 9.5pt;
-    color: #333;
+    color: var(--muted-text);
     text-align: center;
     padding: 0 4px;
   }
@@ -137,7 +189,7 @@
   .exp-date {
     font-size: 8.2pt;
     font-weight: 700;
-    color: #16283d;
+    color: var(--heading-text);
     padding-top: 1px;
     white-space: nowrap;
   }
@@ -150,7 +202,7 @@
 
   .exp-title .company {
     font-weight: 400;
-    color: #333;
+    color: var(--muted-text);
   }
 
   ul.bullets {
@@ -196,7 +248,7 @@
     content: "\2022";
     position: absolute;
     left: 0;
-    color: #2b4f77;
+    color: var(--accent);
   }
 
   ul.line-list li:last-child {
@@ -208,27 +260,27 @@
   }
 
   ul.line-list .entry-range {
-    color: #333;
+    color: var(--muted-text);
     font-weight: 400;
   }
 
   ul.line-list .entry-notes {
     display: block;
     font-size: 9pt;
-    color: #444;
+    color: var(--muted-text);
     margin-top: 1px;
   }
 
   .skills-line {
     font-size: 9.3pt;
     text-align: center;
-    color: #222;
+    color: var(--text-color);
     padding: 0 4px;
   }
 
   .subtitle {
     font-size: 10.5pt;
-    color: #45607d;
+    color: var(--subtitle-color);
     letter-spacing: 1px;
     margin-top: 2px;
   }
@@ -236,7 +288,7 @@
   .exp-location {
     font-size: 7.6pt;
     font-weight: 400;
-    color: #667;
+    color: var(--muted-text-light);
     white-space: nowrap;
     margin-top: 2px;
   }
@@ -316,7 +368,7 @@
   }
 </style>
 </head>
-<body>
+<body class="theme-{{ theme }}">
 
 <header>
   <h1 data-field="name" contenteditable="true">{{ name }}</h1>

@@ -47,6 +47,14 @@ DEFAULT_SECTION_TITLES = {
     "languages": "Languages",
 }
 
+# Visual style, selected at generate-time or from the History editor -
+# must match the body.theme-* blocks in template.html. An unrecognized
+# value just falls through to the :root defaults (classic), so this list
+# is documentation/reference, not something template.html validates
+# against.
+THEMES = ["classic", "modern", "compact"]
+DEFAULT_THEME = "classic"
+
 # Playwright's page.pdf(scale=...) floor; below this the text becomes too
 # small to be a usable resume, so we'd rather fail loudly than ship it.
 MIN_PRINT_SCALE = 0.75
@@ -164,6 +172,7 @@ def build_resume_html(resume_data, template_path):
     resume_data["skills_flat"] = [highlight_text(s) for s in flatten_skills(resume_data.get("skills"))]
     resume_data.setdefault("section_order", DEFAULT_SECTION_ORDER)
     resume_data.setdefault("hidden_sections", [])
+    resume_data.setdefault("theme", DEFAULT_THEME)
     # Merge rather than setdefault: an entry that only renamed one section
     # still needs the other six filled in with their defaults.
     resume_data["section_titles"] = {**DEFAULT_SECTION_TITLES, **resume_data.get("section_titles", {})}

@@ -67,6 +67,7 @@ document.getElementById('resumeForm').addEventListener('submit', async (e) => {
     const btn = e.target.querySelector('button');
     const responseDiv = document.getElementById('response');
     const jobDesc = document.getElementById('jobDescription').value;
+    const theme = document.getElementById('themeSelect').value;
 
     btn.textContent = 'Generating...';
     btn.disabled = true;
@@ -77,7 +78,7 @@ document.getElementById('resumeForm').addEventListener('submit', async (e) => {
         const res = await apiFetch('/generate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ job_description: jobDesc })
+            body: JSON.stringify({ job_description: jobDesc, theme })
         });
 
         const data = await res.json();
@@ -989,6 +990,10 @@ async function openHistoryEditor(id) {
         currentHiddenSections = new Set(currentOriginalResume.hidden_sections || []);
         renderSectionControls();
         renderSkillsEditor(currentOriginalResume.skills || []);
+        // The iframe's initial load already renders with this theme
+        // (server-side, from the same stored data) - this just syncs the
+        // dropdown to match what's already on screen.
+        document.getElementById('historyThemeSelect').value = currentOriginalResume.theme || 'classic';
 
         const iframe = document.getElementById('historyPreviewFrame');
         iframe.onload = () => {
@@ -1002,6 +1007,11 @@ async function openHistoryEditor(id) {
         statusEl.textContent = `Error: ${error.message}`;
     }
 }
+
+document.getElementById('historyThemeSelect').addEventListener('change', (e) => {
+    const doc = getPreviewDoc();
+    if (doc && doc.body) doc.body.className = 'theme-' + e.target.value;
+});
 
 document.getElementById('backToHistoryBtn').addEventListener('click', () => {
     showView('history');
@@ -1021,6 +1031,7 @@ async function saveHistoryEdit(asNew) {
     resume.skills = collectListEditor(skillsEditorEl);
     resume.section_order = currentSectionOrder;
     resume.hidden_sections = Array.from(currentHiddenSections);
+    resume.theme = document.getElementById('historyThemeSelect').value;
 
     const url = asNew ? `/history/${currentHistoryEditId}/save-as` : `/history/${currentHistoryEditId}`;
     const method = asNew ? 'POST' : 'PUT';

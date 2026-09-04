@@ -43,6 +43,10 @@ def generate_resume(body: GenerateRequest, request: Request, user: tuple = Depen
     try:
         tailored_resume_dict = tailor_resume(master_resume_dict, body.job_description, anthropic_api_key=anthropic_api_key)
         apply_contact_overrides(tailored_resume_dict)
+        # Chosen at generate-time (frontend Generate tab); also changeable
+        # afterward from the History editor, since it's stored on the
+        # resume itself just like section_order/hidden_sections.
+        tailored_resume_dict["theme"] = body.theme
 
         # Save to disk as originally intended
         os.makedirs(os.path.dirname(TAILORED_OUTPUT_PATH), exist_ok=True)
