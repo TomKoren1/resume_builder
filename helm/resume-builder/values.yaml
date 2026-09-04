@@ -10,7 +10,7 @@ backend:
   replicaCount: 1
   image:
     repository: ghcr.io/tomkoren1/resume-backend # built + pushed by .github/workflows/build-and-deploy.yml
-    tag: "sha-8a19293" # bumped automatically by CI - do not edit by hand
+    tag: "sha-a3493e3" # bumped automatically by CI - do not edit by hand
     pullPolicy: IfNotPresent
   service:
     port: 8000
