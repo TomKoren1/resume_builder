@@ -84,36 +84,50 @@
   body.theme-executive .profile-text { text-align: left; }
 
   /* Sidebar: two-column, colored left rail (photo/contact/skills/
-     languages/certifications), main column for everything else. Pure
-     CSS Grid placement keyed off the existing data-section attributes -
-     no HTML restructuring, so section_order/hidden_sections keep working
-     exactly as before; grid-row is left to auto-placement, so items
-     explicitly pinned to grid-column: 1 simply stack in that column in
-     DOM order, independent of column 2's stack. The only theme that
-     shows .profile-photo. */
+     languages/certifications), main column for everything else.
+
+     Deliberately floats, not CSS Grid: an earlier version used
+     grid-column to pin sidebar items to column 1 and left grid-row on
+     auto - that looked right in theory, but CSS Grid's implicit row
+     tracks are SHARED across both columns (row N's height is the max of
+     whatever occupies row N in either column), so a tall header pushed
+     "Certifications" down to line up with "Experience" instead of
+     sitting right below the header, leaving huge dead gaps in the rail.
+     Floats stack independently in DOM order, clear of the row-sharing
+     problem entirely - the classic, correct tool for this. This does
+     mean overriding the page's normal display:flex (floats are ignored
+     on flex children) and manually clearfixing so the float's full
+     height is still measured correctly by render_resume.py's
+     print-scale logic. No HTML restructuring either way - still pure
+     data-section-keyed CSS, so section_order/hidden_sections keep
+     working exactly as before. The only theme that shows .profile-photo. */
   body.theme-sidebar {
-    display: grid;
-    grid-template-columns: 175px 1fr;
-    column-gap: 18px;
-    row-gap: 10px;
-    align-content: start;
+    display: block;
+  }
+  body.theme-sidebar::after {
+    content: "";
+    display: table;
+    clear: both;
   }
   body.theme-sidebar header,
   body.theme-sidebar [data-section="skills"],
   body.theme-sidebar [data-section="languages"],
   body.theme-sidebar [data-section="certifications"] {
-    grid-column: 1;
+    float: left;
+    clear: left;
+    width: 175px;
+    box-sizing: border-box;
     background: var(--accent);
     color: #fff;
     border-radius: 8px;
     padding: 12px 10px;
-    margin-bottom: 0;
+    margin: 0 0 10px;
   }
   body.theme-sidebar [data-section="summary"],
   body.theme-sidebar [data-section="experience"],
   body.theme-sidebar [data-section="projects"],
   body.theme-sidebar [data-section="education"] {
-    grid-column: 2;
+    margin-left: 193px;
   }
   body.theme-sidebar header { text-align: center; }
   body.theme-sidebar .subtitle,
@@ -620,7 +634,12 @@
 {% macro section_skills() %}
 <section data-section="skills"{% if not skills_flat %} class="section-empty"{% endif %}>
   {{ section_heading("skills", section_titles.skills) }}
-  <p class="skills-line">{{ skills_flat | join(" &middot; ") }}</p>
+  <ul class="inline-list skills-line" data-list="skills">
+    {% for skill in skills_flat %}
+    <li class="skill-row" data-entry="skill"><span data-field="text" contenteditable="true">{{ skill }}</span><button type="button" class="editor-only remove-entry-btn" title="Remove">&times;</button></li>
+    {% endfor %}
+  </ul>
+  <button type="button" class="editor-only add-entry-btn" data-add-entry="skill">+ Skill</button>
 </section>
 {% endmacro %}
 

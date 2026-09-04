@@ -703,7 +703,6 @@ function applyPhotoToPreview(doc, dataUrl) {
         img.remove();
     }
 }
-let skillsEditorEl = null;
 
 function getPreviewDoc() {
     const iframe = document.getElementById('historyPreviewFrame');
@@ -772,13 +771,6 @@ function renderSectionControls() {
         row.appendChild(downBtn);
         el.appendChild(row);
     });
-}
-
-function renderSkillsEditor(skills) {
-    const container = document.getElementById('skillsEditorContainer');
-    container.innerHTML = '';
-    skillsEditorEl = makeListEditor(skills);
-    container.appendChild(skillsEditorEl);
 }
 
 // ----- contenteditable bold toggle -----
@@ -903,12 +895,20 @@ function newLanguageEntry(doc) {
     ]);
 }
 
+function newSkillEntry(doc) {
+    return dEl(doc, 'li', { class: 'skill-row', 'data-entry': 'skill' }, [
+        editableSpan(doc, 'text', 'New skill'),
+        removeBtnEl(doc),
+    ]);
+}
+
 const ADD_ENTRY_CONFIG = {
     experience: { listSelector: '[data-list="experience"]', factory: newExperienceEntry },
     project: { listSelector: '[data-list="projects"]', factory: newProjectEntry },
     education: { listSelector: '[data-list="education"]', factory: newEducationEntry },
     certification: { listSelector: '[data-list="certifications"]', factory: newCertificationEntry },
     language: { listSelector: '[data-list="languages"]', factory: newLanguageEntry },
+    skill: { listSelector: '[data-list="skills"]', factory: newSkillEntry },
 };
 
 // Event delegation on the iframe's document - one listener handles every
@@ -1020,6 +1020,12 @@ function serializeIframeResume(doc, original) {
         .map(el => el.textContent.trim()).filter(Boolean);
     const languages = Array.from(doc.querySelectorAll('[data-entry="language"] [data-field="text"]'))
         .map(el => el.textContent.trim()).filter(Boolean);
+    // Unlike certifications/languages, skills already supports **bold**
+    // (highlight_text() is applied to skills_flat server-side) - use
+    // htmlToMarkdown so an edit made here round-trips that formatting
+    // instead of flattening it to plain text.
+    const skills = Array.from(doc.querySelectorAll('[data-entry="skill"] [data-field="text"]'))
+        .map(htmlToMarkdown).filter(Boolean);
 
     const section_titles = { ...(original.section_titles || {}) };
     DEFAULT_SECTION_ORDER.forEach(id => {
@@ -1027,7 +1033,7 @@ function serializeIframeResume(doc, original) {
         if (heading) section_titles[id] = heading.textContent.trim();
     });
 
-    return { name, title, contact, summary, experience, projects, education, certifications, languages, section_titles };
+    return { name, title, contact, summary, experience, projects, education, certifications, languages, skills, section_titles };
 }
 
 async function openHistoryEditor(id) {
@@ -1047,7 +1053,6 @@ async function openHistoryEditor(id) {
             ? [...currentOriginalResume.section_order] : [...DEFAULT_SECTION_ORDER];
         currentHiddenSections = new Set(currentOriginalResume.hidden_sections || []);
         renderSectionControls();
-        renderSkillsEditor(currentOriginalResume.skills || []);
         // The iframe's initial load already renders with this theme/color/
         // photo (server-side, from the same stored data) - this just syncs
         // the controls to match what's already on screen.
@@ -1113,7 +1118,6 @@ async function saveHistoryEdit(asNew) {
     }
 
     const resume = serializeIframeResume(doc, currentOriginalResume);
-    resume.skills = collectListEditor(skillsEditorEl);
     resume.section_order = currentSectionOrder;
     resume.hidden_sections = Array.from(currentHiddenSections);
     resume.theme = document.getElementById('historyThemeSelect').value;
