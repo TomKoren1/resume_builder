@@ -19,10 +19,17 @@
     --text-color: #1a2b3c;
     --muted-text: #333;
     --muted-text-light: #667;
+    /* --accent is set inline on <body> (style="--accent: {{ color }};"),
+       driven by the user's own color picker - independent of theme, so
+       any color works with any template. This is just the fallback if
+       that's ever missing. Everything below is DERIVED from --accent via
+       color-mix() rather than a hardcoded palette, so an arbitrary
+       user-chosen hex still produces a readable heading/subtitle/bar-tint
+       instead of needing a hand-tuned shade for every possible color. */
     --accent: #2b4f77;
-    --heading-bg: #dce8f2;
-    --heading-text: #16283d;
-    --subtitle-color: #45607d;
+    --heading-bg: color-mix(in srgb, var(--accent) 14%, white);
+    --heading-text: color-mix(in srgb, var(--accent) 80%, black);
+    --subtitle-color: color-mix(in srgb, var(--accent) 65%, black);
     --base-font-size: 10pt;
     --section-gap: 8px;
     --header-align: center;
@@ -31,12 +38,13 @@
     --bar-padding: 3px 10px;
   }
 
+  /* Theme blocks below are purely structural now (font/spacing/alignment/
+     bar style) - color comes from --accent above, uniformly, regardless
+     of theme. */
+
   body.theme-modern {
     --font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-    --accent: #0f766e;
     --heading-bg: transparent;
-    --heading-text: #0f766e;
-    --subtitle-color: #0f766e;
     --header-align: left;
     --header-justify: flex-start;
     --bar-radius: 0;
@@ -55,6 +63,93 @@
   body.theme-compact .exp-row { margin-bottom: 4px; }
   body.theme-compact ul.bullets li { margin-bottom: 1px; }
   body.theme-compact .project-entry { margin-bottom: 5px; }
+
+  /* Executive: minimalist single-column, refined serif typography, thin
+     rule lines instead of background bars - the "traditional/senior
+     role" style the research above calls out as still preferred in law/
+     finance/government, as a deliberate contrast to Modern. */
+  body.theme-executive {
+    --font-family: Georgia, 'Times New Roman', serif;
+    --heading-bg: transparent;
+    --bar-radius: 0;
+    --bar-padding: 4px 0;
+  }
+  body.theme-executive .bar { border-bottom: 1px solid var(--heading-text); }
+  body.theme-executive .bar h2 {
+    text-align: left;
+    letter-spacing: 2.5px;
+    font-weight: 400;
+  }
+  body.theme-executive header h1 { letter-spacing: 1px; font-weight: 400; }
+  body.theme-executive .profile-text { text-align: left; }
+
+  /* Sidebar: two-column, colored left rail (photo/contact/skills/
+     languages/certifications), main column for everything else. Pure
+     CSS Grid placement keyed off the existing data-section attributes -
+     no HTML restructuring, so section_order/hidden_sections keep working
+     exactly as before; grid-row is left to auto-placement, so items
+     explicitly pinned to grid-column: 1 simply stack in that column in
+     DOM order, independent of column 2's stack. The only theme that
+     shows .profile-photo. */
+  body.theme-sidebar {
+    display: grid;
+    grid-template-columns: 175px 1fr;
+    column-gap: 18px;
+    row-gap: 10px;
+    align-content: start;
+  }
+  body.theme-sidebar header,
+  body.theme-sidebar [data-section="skills"],
+  body.theme-sidebar [data-section="languages"],
+  body.theme-sidebar [data-section="certifications"] {
+    grid-column: 1;
+    background: var(--accent);
+    color: #fff;
+    border-radius: 8px;
+    padding: 12px 10px;
+    margin-bottom: 0;
+  }
+  body.theme-sidebar [data-section="summary"],
+  body.theme-sidebar [data-section="experience"],
+  body.theme-sidebar [data-section="projects"],
+  body.theme-sidebar [data-section="education"] {
+    grid-column: 2;
+  }
+  body.theme-sidebar header { text-align: center; }
+  body.theme-sidebar .subtitle,
+  body.theme-sidebar .contact-item,
+  body.theme-sidebar .contact-item a { color: #fff; }
+  body.theme-sidebar .contact-item svg { stroke: #fff; }
+  body.theme-sidebar .contact-item .badge { background: #fff; color: var(--accent); }
+  body.theme-sidebar .contact-row { justify-content: center; flex-direction: column; gap: 6px; }
+  body.theme-sidebar [data-section="skills"] .bar,
+  body.theme-sidebar [data-section="languages"] .bar,
+  body.theme-sidebar [data-section="certifications"] .bar {
+    background: transparent;
+    padding: 0 0 4px;
+  }
+  body.theme-sidebar [data-section="skills"] .bar h2,
+  body.theme-sidebar [data-section="languages"] .bar h2,
+  body.theme-sidebar [data-section="certifications"] .bar h2 {
+    color: #fff;
+  }
+  body.theme-sidebar .skills-line,
+  body.theme-sidebar ul.inline-list li {
+    /* .skills-line/.inline-list are only ever used by Skills and
+       Languages, both sidebar-column sections - safe to target
+       unscoped, unlike ul.line-list below (also used by Education,
+       which is NOT in the sidebar and must keep its normal dark text). */
+    color: #fff;
+    text-align: left;
+  }
+  body.theme-sidebar [data-section="certifications"] ul.line-list li {
+    color: #fff;
+    text-align: left;
+  }
+  body.theme-sidebar [data-section="certifications"] ul.line-list li::before {
+    color: #fff;
+  }
+  body.theme-sidebar .profile-photo { display: block; margin: 0 auto 10px; }
 
   @page {
     size: Letter;
@@ -366,11 +461,26 @@
     align-items: center;
     gap: 6px;
   }
+
+  /* Only the Sidebar theme actually displays this (see body.theme-sidebar
+     above) - hidden everywhere else so a saved photo doesn't suddenly
+     show up if someone switches away from Sidebar. */
+  .profile-photo {
+    display: none;
+    width: 84px;
+    height: 84px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #fff;
+  }
 </style>
 </head>
-<body class="theme-{{ theme }}">
+<body class="theme-{{ theme }}" style="--accent: {{ color }};">
 
 <header>
+  {% if photo %}
+  <img class="profile-photo" src="{{ photo }}" alt="">
+  {% endif %}
   <h1 data-field="name" contenteditable="true">{{ name }}</h1>
   <p class="subtitle" data-field="title" contenteditable="true">{{ title }}</p>
   <div class="contact-row">

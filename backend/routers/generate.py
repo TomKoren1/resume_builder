@@ -47,6 +47,8 @@ def generate_resume(body: GenerateRequest, request: Request, user: tuple = Depen
         # afterward from the History editor, since it's stored on the
         # resume itself just like section_order/hidden_sections.
         tailored_resume_dict["theme"] = body.theme
+        tailored_resume_dict["color"] = body.color
+        tailored_resume_dict["photo"] = body.photo
 
         # Save to disk as originally intended
         os.makedirs(os.path.dirname(TAILORED_OUTPUT_PATH), exist_ok=True)

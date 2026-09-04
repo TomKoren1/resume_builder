@@ -52,8 +52,12 @@ DEFAULT_SECTION_TITLES = {
 # value just falls through to the :root defaults (classic), so this list
 # is documentation/reference, not something template.html validates
 # against.
-THEMES = ["classic", "modern", "compact"]
+THEMES = ["classic", "modern", "compact", "sidebar", "executive"]
 DEFAULT_THEME = "classic"
+# Plain hex, set directly as the --accent CSS custom property - see the
+# color-mix()-derived shades at template.html's :root for why no curated
+# palette/validation is needed here.
+DEFAULT_COLOR = "#2b4f77"
 
 # Playwright's page.pdf(scale=...) floor; below this the text becomes too
 # small to be a usable resume, so we'd rather fail loudly than ship it.
@@ -173,6 +177,8 @@ def build_resume_html(resume_data, template_path):
     resume_data.setdefault("section_order", DEFAULT_SECTION_ORDER)
     resume_data.setdefault("hidden_sections", [])
     resume_data.setdefault("theme", DEFAULT_THEME)
+    resume_data.setdefault("color", DEFAULT_COLOR)
+    resume_data.setdefault("photo", "")
     # Merge rather than setdefault: an entry that only renamed one section
     # still needs the other six filled in with their defaults.
     resume_data["section_titles"] = {**DEFAULT_SECTION_TITLES, **resume_data.get("section_titles", {})}

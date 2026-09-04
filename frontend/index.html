@@ -42,7 +42,15 @@
                         <option value="classic">Classic</option>
                         <option value="modern">Modern</option>
                         <option value="compact">Compact</option>
+                        <option value="sidebar">Sidebar (with photo)</option>
+                        <option value="executive">Executive</option>
                     </select>
+
+                    <label for="colorPicker">Accent Color</label>
+                    <input type="color" id="colorPicker" value="#2b4f77">
+
+                    <label for="photoInput">Photo (Sidebar template only)</label>
+                    <input type="file" id="photoInput" accept="image/*">
                     <p class="hint">Changeable later too, from the History editor.</p>
                     <button type="submit">Generate Resume</button>
                 </form>
@@ -101,7 +109,16 @@
                         <option value="classic">Classic</option>
                         <option value="modern">Modern</option>
                         <option value="compact">Compact</option>
+                        <option value="sidebar">Sidebar (with photo)</option>
+                        <option value="executive">Executive</option>
                     </select>
+
+                    <label for="historyColorPicker">Accent Color</label>
+                    <input type="color" id="historyColorPicker" value="#2b4f77">
+
+                    <label for="historyPhotoInput">Photo (Sidebar template only)</label>
+                    <input type="file" id="historyPhotoInput" accept="image/*">
+                    <button type="button" id="removeHistoryPhotoBtn" class="danger-outline">Remove Photo</button>
 
                     <h3>Sections</h3>
                     <div id="sectionControls" class="section-controls"></div>

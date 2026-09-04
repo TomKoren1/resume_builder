@@ -21,13 +21,20 @@ DEFAULT_SECTION_TITLES = {
 # Must match the body.theme-* blocks in app/template.html. An unknown
 # value here just falls back to the :root defaults (classic) - no
 # validation needed, an invalid theme is harmless, not a broken render.
-THEMES = ["classic", "modern", "compact"]
+THEMES = ["classic", "modern", "compact", "sidebar", "executive"]
 DEFAULT_THEME = "classic"
+# A plain hex string, set directly as the --accent CSS custom property -
+# no curated palette/enum, any color the user picks works (template.html
+# derives readable heading/subtitle/bar-tint shades from it via
+# color-mix(), so there's no fixed set to validate against).
+DEFAULT_COLOR = "#2b4f77"
 
 
 class GenerateRequest(BaseModel):
     job_description: str
     theme: str = DEFAULT_THEME
+    color: str = DEFAULT_COLOR
+    photo: str = ""  # base64 data: URI, or "" for none - see EditableResume.photo
 
 
 # --- Master resume, matching the schema app/template.html renders ---
@@ -87,6 +94,8 @@ class EditableResume(MasterResume):
     hidden_sections: list[str] = Field(default_factory=list)
     section_titles: dict[str, str] = Field(default_factory=lambda: dict(DEFAULT_SECTION_TITLES))
     theme: str = DEFAULT_THEME
+    color: str = DEFAULT_COLOR
+    photo: str = ""  # base64 data: URI (client-side resized before upload), or "" for none
 
 
 # --- History / version list responses ---

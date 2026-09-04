@@ -14,6 +14,37 @@ function formatApiError(data, fallback) {
     return fallback;
 }
 
+// Downscales+recompresses an uploaded photo client-side before it ever
+// becomes a base64 string - an unresized phone photo can be several MB,
+// which would bloat the generation_history row (and every JSON payload
+// touching it) for a resume that only ever displays it at ~84px. Caps
+// the longest edge at 300px and re-encodes as JPEG.
+function resizeImageToDataUrl(file, maxDim = 300, quality = 0.82) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            const img = new Image();
+            img.onload = () => {
+                let { width, height } = img;
+                if (width > height) {
+                    if (width > maxDim) { height = Math.round(height * maxDim / width); width = maxDim; }
+                } else if (height > maxDim) {
+                    width = Math.round(width * maxDim / height); height = maxDim;
+                }
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+                resolve(canvas.toDataURL('image/jpeg', quality));
+            };
+            img.onerror = () => reject(new Error('Could not read that image.'));
+            img.src = reader.result;
+        };
+        reader.onerror = () => reject(new Error('Could not read that file.'));
+        reader.readAsDataURL(file);
+    });
+}
+
 function showView(viewName) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
@@ -68,6 +99,8 @@ document.getElementById('resumeForm').addEventListener('submit', async (e) => {
     const responseDiv = document.getElementById('response');
     const jobDesc = document.getElementById('jobDescription').value;
     const theme = document.getElementById('themeSelect').value;
+    const color = document.getElementById('colorPicker').value;
+    const photoFile = document.getElementById('photoInput').files[0];
 
     btn.textContent = 'Generating...';
     btn.disabled = true;
@@ -75,10 +108,11 @@ document.getElementById('resumeForm').addEventListener('submit', async (e) => {
     responseDiv.textContent = 'Contacting AWS Bedrock...';
 
     try {
+        const photo = photoFile ? await resizeImageToDataUrl(photoFile) : '';
         const res = await apiFetch('/generate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ job_description: jobDesc, theme })
+            body: JSON.stringify({ job_description: jobDesc, theme, color, photo })
         });
 
         const data = await res.json();
@@ -645,6 +679,30 @@ let currentHistoryEditId = null;
 let currentSectionOrder = [];
 let currentHiddenSections = new Set();
 let currentOriginalResume = {};
+let currentPhoto = '';
+
+// The <img class="profile-photo"> only exists in the DOM at all when a
+// photo is set (template.html wraps it in {% if photo %}) - avoids a
+// broken-image icon showing up in the actual PDF for photo-less resumes.
+// So adding/removing a photo here means inserting/removing the element,
+// not just updating a src that may not exist yet.
+function applyPhotoToPreview(doc, dataUrl) {
+    if (!doc || !doc.body) return;
+    const header = doc.querySelector('header');
+    if (!header) return;
+    let img = header.querySelector('.profile-photo');
+    if (dataUrl) {
+        if (!img) {
+            img = doc.createElement('img');
+            img.className = 'profile-photo';
+            img.alt = '';
+            header.insertBefore(img, header.firstChild);
+        }
+        img.src = dataUrl;
+    } else if (img) {
+        img.remove();
+    }
+}
 let skillsEditorEl = null;
 
 function getPreviewDoc() {
@@ -990,10 +1048,13 @@ async function openHistoryEditor(id) {
         currentHiddenSections = new Set(currentOriginalResume.hidden_sections || []);
         renderSectionControls();
         renderSkillsEditor(currentOriginalResume.skills || []);
-        // The iframe's initial load already renders with this theme
-        // (server-side, from the same stored data) - this just syncs the
-        // dropdown to match what's already on screen.
+        // The iframe's initial load already renders with this theme/color/
+        // photo (server-side, from the same stored data) - this just syncs
+        // the controls to match what's already on screen.
         document.getElementById('historyThemeSelect').value = currentOriginalResume.theme || 'classic';
+        document.getElementById('historyColorPicker').value = currentOriginalResume.color || '#2b4f77';
+        document.getElementById('historyPhotoInput').value = '';
+        currentPhoto = currentOriginalResume.photo || '';
 
         const iframe = document.getElementById('historyPreviewFrame');
         iframe.onload = () => {
@@ -1011,6 +1072,30 @@ async function openHistoryEditor(id) {
 document.getElementById('historyThemeSelect').addEventListener('change', (e) => {
     const doc = getPreviewDoc();
     if (doc && doc.body) doc.body.className = 'theme-' + e.target.value;
+});
+
+document.getElementById('historyColorPicker').addEventListener('input', (e) => {
+    const doc = getPreviewDoc();
+    if (doc && doc.body) doc.body.style.setProperty('--accent', e.target.value);
+});
+
+document.getElementById('historyPhotoInput').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+        currentPhoto = await resizeImageToDataUrl(file);
+        applyPhotoToPreview(getPreviewDoc(), currentPhoto);
+    } catch (error) {
+        const statusEl = document.getElementById('historyEditStatus');
+        statusEl.className = 'error';
+        statusEl.textContent = `Error: ${error.message}`;
+    }
+});
+
+document.getElementById('removeHistoryPhotoBtn').addEventListener('click', () => {
+    currentPhoto = '';
+    document.getElementById('historyPhotoInput').value = '';
+    applyPhotoToPreview(getPreviewDoc(), '');
 });
 
 document.getElementById('backToHistoryBtn').addEventListener('click', () => {
@@ -1032,6 +1117,8 @@ async function saveHistoryEdit(asNew) {
     resume.section_order = currentSectionOrder;
     resume.hidden_sections = Array.from(currentHiddenSections);
     resume.theme = document.getElementById('historyThemeSelect').value;
+    resume.color = document.getElementById('historyColorPicker').value;
+    resume.photo = currentPhoto;
 
     const url = asNew ? `/history/${currentHistoryEditId}/save-as` : `/history/${currentHistoryEditId}`;
     const method = asNew ? 'POST' : 'PUT';
