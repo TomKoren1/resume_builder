@@ -451,6 +451,13 @@ function makeCustomSectionsEditor(container, sections) {
 
         const { group: titleGroup, input: titleInput } = makeTextField('Section Title', data.title);
         titleInput.dataset.fieldKey = 'title';
+        // A blank title has nothing to show as a heading and nothing for
+        // section_order to reference, so collectCustomSections() drops it
+        // silently on save - required forces the browser to block
+        // submission and point at the empty field instead of losing it
+        // with no explanation.
+        titleInput.required = true;
+        titleInput.placeholder = 'e.g. Volunteer Work';
         card.appendChild(titleGroup);
 
         const typeLabel = document.createElement('label');
