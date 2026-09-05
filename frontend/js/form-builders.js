@@ -151,7 +151,7 @@ export function makeTextBlockList(initialCount) {
     return wrap;
 }
 
-function slugifyCustomId(title, index) {
+export function slugifyCustomId(title, index) {
     const slug = (title || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
     return 'custom-' + (slug || ('section-' + index));
 }

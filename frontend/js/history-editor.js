@@ -1,4 +1,5 @@
 import { apiFetch, formatApiError, showView, resizeImageToDataUrl } from './utils.js';
+import { slugifyCustomId } from './form-builders.js';
 // Circular with history.js (which imports openHistoryEditor from here) -
 // safe because both sides only call the other's export from inside an
 // event listener, never at module-evaluation time, so by the time either
@@ -257,6 +258,40 @@ function newCustomItemEntry(doc) {
     ]);
 }
 
+// Mirrors app/template.html's section_heading macro exactly (the ".bar"
+// wrapper + contenteditable <h2 data-field="section_title">) - serializeIframeResume
+// below reads section_titles/custom section titles back out via that
+// same selector, so a freshly-added section needs the identical shape,
+// not just visually similar markup.
+function sectionHeadingEl(doc, title) {
+    const h2 = dEl(doc, 'h2', { 'data-field': 'section_title', contenteditable: 'true' });
+    h2.textContent = title;
+    return dEl(doc, 'div', { class: 'bar' }, [h2]);
+}
+
+// Mirrors app/template.html's section_custom macro - a brand-new section
+// added here (as opposed to one the server already rendered) needs the
+// exact same DOM shape wireEditorControls()/serializeIframeResume() and
+// the real PDF render both expect, or it would look right on screen but
+// silently fail to save or print correctly.
+function newCustomSectionEl(doc, section) {
+    const children = [sectionHeadingEl(doc, section.title)];
+    if (section.type === 'text') {
+        const p = dEl(doc, 'p', { class: 'profile-text', 'data-field': 'custom_text', contenteditable: 'true' });
+        p.textContent = section.text || '';
+        children.push(p);
+    } else {
+        children.push(dEl(doc, 'ul', { class: 'line-list', 'data-list': `custom-${section.id}` }));
+        const addBtn = dEl(doc, 'button', { type: 'button', class: 'editor-only add-entry-btn', 'data-add-entry': `custom-${section.id}` });
+        addBtn.textContent = '+ Item';
+        children.push(addBtn);
+    }
+    // Starts empty, so mark it .section-empty like the server does for any
+    // empty section - only hides it from the printed PDF (@media print in
+    // template.html), stays visible here in the editor.
+    return dEl(doc, 'section', { 'data-section': section.id, 'data-custom-type': section.type, class: 'section-empty' }, children);
+}
+
 const ADD_ENTRY_CONFIG = {
     experience: { listSelector: '[data-list="experience"]', factory: newExperienceEntry },
     project: { listSelector: '[data-list="projects"]', factory: newProjectEntry },
@@ -492,6 +527,57 @@ document.getElementById('removeHistoryPhotoBtn').addEventListener('click', () =>
     currentPhoto = '';
     document.getElementById('historyPhotoInput').value = '';
     applyPhotoToPreview(getPreviewDoc(), '');
+});
+
+// Adds a brand-new custom section directly to *this* history entry - the
+// Master Resume's "Custom Sections" editor only ever affects future
+// generations (see routers/generate.py, which now carries custom_sections
+// through verbatim at generate time), so a resume that already exists had
+// no way to gain one short of regenerating it from scratch.
+document.getElementById('addCustomSectionBtn').addEventListener('click', () => {
+    const statusEl = document.getElementById('historyEditStatus');
+    const doc = getPreviewDoc();
+    if (!doc || !doc.body) {
+        statusEl.className = 'error';
+        statusEl.textContent = 'Preview is still loading - try again in a moment.';
+        return;
+    }
+
+    const titleInput = document.getElementById('newCustomSectionTitle');
+    const title = titleInput.value.trim();
+    if (!title) {
+        statusEl.className = 'error';
+        statusEl.textContent = 'Enter a title for the new section first.';
+        return;
+    }
+
+    let id = slugifyCustomId(title, currentSectionOrder.length);
+    // slugifyCustomId only disambiguates a *blank* title (via the index
+    // fallback) - two different titles that slugify to the same id (or
+    // adding "Volunteer Work" twice) still need de-duplicating here, or
+    // the second one would silently overwrite/merge with the first.
+    let suffix = 2;
+    const baseId = id;
+    while (currentSectionOrder.includes(id)) {
+        id = `${baseId}-${suffix++}`;
+    }
+
+    const type = document.getElementById('newCustomSectionType').value;
+    const section = { id, title, type, items: [], text: '' };
+
+    currentOriginalResume.custom_sections = [...(currentOriginalResume.custom_sections || []), section];
+    currentSectionOrder.push(id);
+    currentHiddenSections.delete(id);
+
+    doc.body.appendChild(newCustomSectionEl(doc, section));
+    renderSectionControls();
+    applySectionOrderToPreview();
+
+    titleInput.value = '';
+    document.getElementById('newCustomSectionType').value = 'bullets';
+
+    const heading = doc.querySelector(`[data-section="${id}"] [data-field="section_title"]`);
+    if (heading) heading.scrollIntoView({ behavior: 'smooth', block: 'center' });
 });
 
 document.getElementById('backToHistoryBtn').addEventListener('click', () => {
