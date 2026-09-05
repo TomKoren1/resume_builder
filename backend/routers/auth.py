@@ -20,11 +20,23 @@ router = APIRouter(prefix="/auth")
 def _redirect_uri(request: Request, provider: str) -> str:
     # Derived from whatever host the request actually arrived on (rather
     # than a fixed config value), so both the private Tailscale hostname
-    # and the eventual public domain work simultaneously with no
-    # per-environment config. Each OAuth provider's app config still needs
-    # every hostname's callback URL allowlisted on its side - see
+    # and the public domain work simultaneously with no per-environment
+    # config. Each OAuth provider's app config still needs every
+    # hostname's callback URL allowlisted on its side - see
     # helm/resume-builder/README.md for the exact URIs to register.
-    return str(request.base_url) + f"auth/callback/{provider}"
+    #
+    # Deliberately NOT request.base_url here: that reflects the scheme
+    # the ASGI server itself sees, which is plain HTTP even for the
+    # public domain - Cloudflare terminates TLS at its edge, and the
+    # tunnel -> Traefik -> backend hops are plain HTTP by design.
+    # Correctly recovering "https" would mean trusting X-Forwarded-Proto
+    # through two proxy hops (cloudflared, then Traefik) - fragile to
+    # get right and silently wrong if either hop's trusted-proxy config
+    # ever changes. The Host header has no such ambiguity (both hostnames
+    # already depend on it being correct - that's how the Ingress routes
+    # at all), so scheme is inferred from which host this is instead.
+    scheme = "http" if request.url.hostname.endswith(".local") else "https"
+    return f"{scheme}://{request.url.hostname}/auth/callback/{provider}"
 
 
 @router.get("/login/{provider}")
