@@ -500,10 +500,15 @@ function makeCustomSectionsEditor(container, sections) {
         typeSelect.addEventListener('change', syncVisibility);
         syncVisibility();
 
-        container.insertBefore(card, container.lastElementChild);
+        // Always insert right before the (already-appended) add button,
+        // never container.lastElementChild directly - during the initial
+        // forEach below, the first card's insertBefore(card, null) is a
+        // no-op append, but every card after that would land BEFORE the
+        // previous one (lastElementChild was the last-inserted card, not
+        // the end of the list), silently rotating the display order on
+        // every reload for anyone with 2+ custom sections.
+        container.insertBefore(card, addBtn);
     }
-
-    (sections || []).forEach(addCard);
 
     const addBtn = document.createElement('button');
     addBtn.type = 'button';
@@ -511,6 +516,8 @@ function makeCustomSectionsEditor(container, sections) {
     addBtn.textContent = '+ Add Custom Section';
     addBtn.addEventListener('click', () => addCard(null));
     container.appendChild(addBtn);
+
+    (sections || []).forEach(addCard);
 }
 
 function collectCustomSections(container) {

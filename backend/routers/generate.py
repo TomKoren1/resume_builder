@@ -49,6 +49,13 @@ def generate_resume(body: GenerateRequest, request: Request, user: tuple = Depen
         tailored_resume_dict["theme"] = body.theme
         tailored_resume_dict["color"] = body.color
         tailored_resume_dict["photo"] = body.photo
+        # Custom sections (Volunteer Work, Publications, etc.) aren't
+        # job-tailoring targets - the LLM prompt never asks it to rewrite
+        # them, and isn't told to preserve an unfamiliar field it wasn't
+        # instructed about, so they silently vanish from its JSON output
+        # more often than not. Carry them over from the master resume
+        # verbatim instead of trusting the model to echo them back.
+        tailored_resume_dict["custom_sections"] = master_resume_dict.get("custom_sections", [])
 
         # Save to disk as originally intended
         os.makedirs(os.path.dirname(TAILORED_OUTPUT_PATH), exist_ok=True)
