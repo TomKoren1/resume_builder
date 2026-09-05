@@ -91,6 +91,10 @@ def init_db():
             conn.execute(
                 "ALTER TABLE generation_history ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1"
             )
+        if not _column_exists(conn, "generation_history", "name"):
+            # No DEFAULT needed (nullable) - existing rows just start
+            # unnamed, same as any entry generated without ever renaming it.
+            conn.execute("ALTER TABLE generation_history ADD COLUMN name TEXT")
         conn.commit()
     finally:
         conn.close()
@@ -265,7 +269,7 @@ def list_history(user_id):
     try:
         rows = conn.execute(
             """SELECT id, created_at, job_description, status,
-                      (pdf IS NOT NULL) AS has_pdf, error_message
+                      (pdf IS NOT NULL) AS has_pdf, error_message, name
                FROM generation_history WHERE user_id = ? ORDER BY id DESC""",
             (user_id,),
         ).fetchall()
@@ -294,7 +298,7 @@ def get_history_entry(user_id, history_id):
     try:
         row = conn.execute(
             """SELECT id, created_at, job_description, status,
-                      (pdf IS NOT NULL) AS has_pdf, error_message, tailored_resume
+                      (pdf IS NOT NULL) AS has_pdf, error_message, name, tailored_resume
                FROM generation_history WHERE id = ? AND user_id = ?""",
             (history_id, user_id),
         ).fetchone()
@@ -317,6 +321,36 @@ def update_history(user_id, history_id, tailored_resume, pdf_bytes):
             """UPDATE generation_history SET tailored_resume = ?, pdf = ?, status = 'success', error_message = NULL
                WHERE id = ? AND user_id = ?""",
             (json.dumps(tailored_resume), pdf_bytes, history_id, user_id),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def rename_history(user_id, history_id, name):
+    """name=None clears back to the default job_description display. The
+    user_id filter is the ownership check (see restore_master_resume_version) -
+    rowcount 0 means either no such id or it belongs to someone else,
+    which the router turns into a 404 either way."""
+    conn = _connect()
+    try:
+        cur = conn.execute(
+            "UPDATE generation_history SET name = ? WHERE id = ? AND user_id = ?",
+            (name, history_id, user_id),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def delete_history(user_id, history_id):
+    conn = _connect()
+    try:
+        cur = conn.execute(
+            "DELETE FROM generation_history WHERE id = ? AND user_id = ?",
+            (history_id, user_id),
         )
         conn.commit()
         return cur.rowcount > 0

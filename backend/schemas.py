@@ -122,10 +122,18 @@ class HistoryItem(BaseModel):
     status: str
     has_pdf: bool
     error_message: Optional[str] = None
+    name: Optional[str] = None
 
 
 class HistoryDetail(HistoryItem):
     data: Optional[dict] = None
+
+
+class RenameHistoryRequest(BaseModel):
+    # Empty/whitespace-only clears the custom name (falls back to
+    # displaying job_description) rather than being rejected - "" is a
+    # valid way to say "I don't want a name anymore", not an error.
+    name: str = ""
 
 
 class MasterResumeVersion(BaseModel):

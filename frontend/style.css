@@ -148,6 +148,8 @@ form#resumeForm button { width: 100%; margin-top: 0.5rem; }
 
 .history-meta { flex: 1; min-width: 0; }
 
+.history-name { font-weight: 700; margin-bottom: 0.1rem; }
+
 .history-date { font-size: 0.8rem; color: var(--text-muted); }
 
 .history-job {

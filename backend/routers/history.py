@@ -7,7 +7,7 @@ from fastapi.responses import HTMLResponse
 from .. import db
 from ..auth import get_current_user
 from ..config import PDF_SCRATCH_PATH, TAILORED_OUTPUT_PATH, TEMPLATE_PATH
-from ..schemas import EditableResume, HistoryDetail, HistoryItem
+from ..schemas import EditableResume, HistoryDetail, HistoryItem, RenameHistoryRequest
 
 try:
     from app.render_resume import build_resume_html, render_resume
@@ -83,6 +83,21 @@ def update_history_entry(history_id: int, resume: EditableResume, http_request: 
         "message": "Saved.",
         "download_url": str(http_request.base_url) + f"history/{history_id}/download",
     }
+
+
+@router.patch("/history/{history_id}/name")
+def rename_history_entry(history_id: int, body: RenameHistoryRequest, user_id: int = Depends(get_current_user)):
+    name = body.name.strip() or None
+    if not db.rename_history(user_id, history_id, name):
+        raise HTTPException(status_code=404, detail="No such history entry.")
+    return {"message": "Renamed.", "name": name}
+
+
+@router.delete("/history/{history_id}")
+def delete_history_entry(history_id: int, user_id: int = Depends(get_current_user)):
+    if not db.delete_history(user_id, history_id):
+        raise HTTPException(status_code=404, detail="No such history entry.")
+    return {"message": "Deleted."}
 
 
 @router.post("/history/{history_id}/save-as")
