@@ -37,7 +37,9 @@ frontend:
   service:
     port: 80
 ingress:
-  host: resume.local
+  hosts:
+    - resume.local
+    - resume.resume-4u.com
 cloudflared:
   image:
     repository: cloudflare/cloudflared
