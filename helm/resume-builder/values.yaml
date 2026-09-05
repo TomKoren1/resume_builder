@@ -34,7 +34,7 @@ frontend:
   replicaCount: 1
   image:
     repository: ghcr.io/tomkoren1/resume-frontend # built + pushed by .github/workflows/build-and-deploy.yml
-    tag: "sha-49b8523" # bumped automatically by CI - do not edit by hand
+    tag: "sha-3c5203d" # bumped automatically by CI - do not edit by hand
     pullPolicy: IfNotPresent
   service:
     port: 80
