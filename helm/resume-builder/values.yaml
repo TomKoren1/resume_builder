@@ -24,10 +24,12 @@ backend:
     # from the SealedSecret in templates/backend-sealedsecret.yaml, never
     # from here.
   # irsaRoleArn: only meaningful on EKS - leave unset on k3s (see serviceaccount.yaml)
-  # Must stay "false" until Cloudflare Tunnel fronts this with real HTTPS
-  # (Phase 4 of the public-multi-user plan) - browsers silently drop
-  # Secure cookies over plain HTTP (what Tailscale/.local serves today).
-  sessionCookieSecure: "false"
+  # Flipped to "true" now that Cloudflare Tunnel fronts resume.resume-4u.com
+  # with real HTTPS (verified live end-to-end before this change landed).
+  # Login over plain-HTTP resume.local stops working from here on -
+  # browsers silently drop Secure cookies over HTTP, by design; that's
+  # fine, resume.resume-4u.com is the real path going forward.
+  sessionCookieSecure: "true"
 frontend:
   replicaCount: 1
   image:
