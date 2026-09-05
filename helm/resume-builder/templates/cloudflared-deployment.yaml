@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "resume-builder.fullname" . }}-cloudflared
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cloudflared
+  template:
+    metadata:
+      labels:
+        app: cloudflared
+    spec:
+      containers:
+        - name: cloudflared
+          image: "{{ .Values.cloudflared.image.repository }}:{{ .Values.cloudflared.image.tag }}"
+          imagePullPolicy: IfNotPresent
+          args:
+            - tunnel
+            # cloudflared's own auto-update is redundant (and undesirable)
+            # in a container - image upgrades happen via bumping
+            # .Values.cloudflared.image.tag instead, through the same
+            # GitOps flow as everything else.
+            - --no-autoupdate
+            - run
+          # TUNNEL_TOKEN is read natively from the environment by
+          # `cloudflared tunnel run` - no --token arg needed, which would
+          # otherwise put the token in `kubectl get pod -o yaml`'s visible
+          # command line instead of just the (still-visible-to-cluster-
+          # admins-but-conventional) env var.
+          envFrom:
+            - secretRef:
+                name: {{ include "resume-builder.fullname" . }}-cloudflared-secret

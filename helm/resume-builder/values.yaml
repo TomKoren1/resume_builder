@@ -38,3 +38,7 @@ frontend:
     port: 80
 ingress:
   host: resume.local
+cloudflared:
+  image:
+    repository: cloudflare/cloudflared
+    tag: "2026.8.3" # pin exact version deliberately - bump by hand when wanted, not via --no-autoupdate
