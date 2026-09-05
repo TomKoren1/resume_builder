@@ -64,6 +64,18 @@
         <section id="view-edit" class="view">
             <div class="container wide">
                 <h2>Edit Master Resume</h2>
+
+                <div class="section-block" style="margin-top: 0; padding-top: 0; border-top: none;">
+                    <h4>Import from existing resumes</h4>
+                    <p class="hint">Paste and/or upload as many old resumes as you have - your own Anthropic API key consolidates them into one master resume.</p>
+                    <div id="importTextBlocks"></div>
+                    <button type="button" id="addImportTextBtn" class="add-btn">+ Add pasted resume</button>
+                    <label for="importFiles">Or upload PDF(s)</label>
+                    <input type="file" id="importFiles" accept="application/pdf" multiple>
+                    <div id="importStatus"></div>
+                    <button type="button" id="importResumesBtn" style="margin-top: 0.75rem;">Auto-fill Master Resume</button>
+                </div>
+
                 <div id="editStatus"></div>
                 <form id="masterResumeForm"></form>
 

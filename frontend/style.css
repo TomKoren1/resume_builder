@@ -255,6 +255,19 @@ form#resumeForm button { width: 100%; margin-top: 0.5rem; }
 #editStatus.success { display: block; background: #e5f7ec; color: var(--success); }
 #editStatus.error { display: block; background: #fbeaea; color: var(--error); }
 
+#importStatus {
+    padding: 0.6rem 0.9rem;
+    border-radius: 6px;
+    margin: 0.75rem 0;
+    display: none;
+    font-size: 0.9rem;
+}
+
+#importStatus.success { display: block; background: #e5f7ec; color: var(--success); }
+#importStatus.error { display: block; background: #fbeaea; color: var(--error); }
+
+#importTextBlocks .card textarea { height: 140px; }
+
 .version-item {
     display: flex;
     justify-content: space-between;

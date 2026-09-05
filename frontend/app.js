@@ -72,7 +72,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         showView(btn.dataset.view);
         if (btn.dataset.view === 'history') loadHistory();
-        if (btn.dataset.view === 'edit') loadMasterResume();
+        if (btn.dataset.view === 'edit') { loadMasterResume(); initImportSection(); }
         if (btn.dataset.view === 'account') loadAccount();
     });
 });
@@ -389,6 +389,36 @@ function collectListEditor(wrap) {
         .filter(v => v.length > 0);
 }
 
+// A dynamic list of full-size textareas (one per pasted old resume) -
+// same add/remove convention as makeListEditor above, just card-wrapped
+// since these hold multi-line text rather than a single value.
+function makeTextBlockList(initialCount) {
+    const wrap = document.createElement('div');
+
+    function addBlock() {
+        const card = document.createElement('div');
+        card.className = 'card';
+        const header = document.createElement('div');
+        header.className = 'card-header';
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'remove-btn';
+        removeBtn.textContent = '×';
+        removeBtn.title = 'Remove';
+        removeBtn.addEventListener('click', () => card.remove());
+        header.appendChild(removeBtn);
+        const textarea = document.createElement('textarea');
+        textarea.placeholder = 'Paste an old resume here...';
+        card.appendChild(header);
+        card.appendChild(textarea);
+        wrap.appendChild(card);
+    }
+
+    for (let i = 0; i < (initialCount || 1); i++) addBlock();
+    wrap._addBlock = addBlock;
+    return wrap;
+}
+
 function makeTextField(labelText, value) {
     const label = document.createElement('label');
     label.textContent = labelText;
@@ -567,6 +597,69 @@ function collectResumeFields(container) {
 }
 
 // ---------- Edit Master Resume ----------
+
+// ---------- Import master resume from existing resumes ----------
+let importTextBlocksEl = null;
+
+function initImportSection() {
+    const container = document.getElementById('importTextBlocks');
+    container.innerHTML = '';
+    importTextBlocksEl = makeTextBlockList(1);
+    container.appendChild(importTextBlocksEl);
+    document.getElementById('importFiles').value = '';
+    const statusEl = document.getElementById('importStatus');
+    statusEl.className = '';
+    statusEl.textContent = '';
+}
+
+document.getElementById('addImportTextBtn').addEventListener('click', () => {
+    importTextBlocksEl._addBlock();
+});
+
+document.getElementById('importResumesBtn').addEventListener('click', async () => {
+    const statusEl = document.getElementById('importStatus');
+    const btn = document.getElementById('importResumesBtn');
+    const texts = Array.from(importTextBlocksEl.querySelectorAll('textarea'))
+        .map(t => t.value.trim()).filter(Boolean);
+    const files = Array.from(document.getElementById('importFiles').files);
+
+    if (!texts.length && !files.length) {
+        statusEl.className = 'error';
+        statusEl.textContent = 'Paste at least one resume or upload a PDF first.';
+        return;
+    }
+
+    const formData = new FormData();
+    texts.forEach(t => formData.append('texts', t));
+    files.forEach(f => formData.append('files', f));
+
+    btn.textContent = 'Extracting...';
+    btn.disabled = true;
+    statusEl.className = '';
+    statusEl.textContent = '';
+
+    try {
+        const res = await apiFetch('/master-resume/import', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (!res.ok) throw new Error(formatApiError(data, 'Import failed'));
+
+        statusEl.className = 'success';
+        statusEl.textContent = data.message;
+
+        if (data.auto_saved) {
+            loadMasterResume();
+        } else {
+            renderMasterResumeForm(data.data);
+            document.getElementById('masterResumeForm').scrollIntoView({ behavior: 'smooth' });
+        }
+    } catch (error) {
+        statusEl.className = 'error';
+        statusEl.textContent = `Error: ${error.message}`;
+    } finally {
+        btn.textContent = 'Auto-fill Master Resume';
+        btn.disabled = false;
+    }
+});
 
 async function loadMasterResume() {
     const form = document.getElementById('masterResumeForm');
