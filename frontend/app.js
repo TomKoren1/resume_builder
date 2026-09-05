@@ -1307,6 +1307,18 @@ async function openHistoryEditor(id) {
         currentOriginalResume = entry.data || {};
         currentSectionOrder = (currentOriginalResume.section_order && currentOriginalResume.section_order.length)
             ? [...currentOriginalResume.section_order] : [...DEFAULT_SECTION_ORDER];
+        // A freshly generated resume has no stored section_order at all
+        // (routers/generate.py never sets one) - so the fallback above
+        // only ever had the 7 fixed ids, and any custom section silently
+        // had no row in the sections panel below (no checkbox, no
+        // reorder), even though it renders fine in the iframe preview
+        // itself (app/render_resume.py's build_resume_html appends it
+        // there server-side). Mirror that same append here so it always
+        // has a control, whether section_order was missing entirely or
+        // just predates this custom section being added.
+        (currentOriginalResume.custom_sections || []).forEach(cs => {
+            if (!currentSectionOrder.includes(cs.id)) currentSectionOrder.push(cs.id);
+        });
         currentHiddenSections = new Set(currentOriginalResume.hidden_sections || []);
         renderSectionControls();
         // The iframe's initial load already renders with this theme/color/
