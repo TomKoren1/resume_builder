@@ -232,6 +232,18 @@ def render_resume(resume_json_path, template_path, output_pdf_path):
         browser = p.chromium.launch(channel="chromium")
         page = browser.new_page(viewport={"width": CONTENT_WIDTH_PX, "height": 100})
         page.set_content(html_content, wait_until="networkidle")
+        # page.pdf() below emulates print media automatically, which hides
+        # every .editor-only add/remove button and collapses .section-empty
+        # sections (see template.html's @media print block) - measuring
+        # without emulating that first counts ~200-300px of buttons that
+        # will never actually print, overstating how much the resume needs
+        # to shrink to fit one page. That phantom height was causing
+        # borderline resumes (genuinely ~1 page of real content) to get
+        # shrunk far more than necessary, which both shrinks the font more
+        # than needed AND leaves the shrunk content short of the actual
+        # page height - dead whitespace at the bottom despite the font
+        # already looking noticeably smaller.
+        page.emulate_media(media="print")
 
         # Measure the natural (unscaled) content height at the resume's
         # actual printable width, so we know up front whether it'll fit on
