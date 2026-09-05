@@ -655,6 +655,32 @@
 </section>
 {% endmacro %}
 
+{% macro section_custom(section) %}
+{# User-defined section (see backend/schemas.py's CustomSection) - id is
+   a stable slug, used directly as data-section so it participates in
+   section_order/hidden_sections exactly like a built-in section. #}
+<section data-section="{{ section.id }}" data-custom-type="{{ section.type }}"{% if (section.type == 'text' and not section.text) or (section.type != 'text' and not section['items']) %} class="section-empty"{% endif %}>
+  {{ section_heading(section.id, section.title) }}
+  {% if section.type == 'text' %}
+  <p class="profile-text" data-field="custom_text" contenteditable="true">{{ section.text }}</p>
+  {% else %}
+  <ul class="line-list" data-list="custom-{{ section.id }}">
+    {# section.items resolves to dict.items (the built-in method), not
+       the "items" key - Jinja tries attribute access before subscript
+       access, and dict has a real .items() method. Explicit subscript
+       syntax forces the correct lookup. #}
+    {% for item in section['items'] %}
+    <li data-entry="custom-item">
+      <span data-field="text" contenteditable="true">{{ item }}</span>
+      <button type="button" class="editor-only remove-entry-btn" title="Remove">&times;</button>
+    </li>
+    {% endfor %}
+  </ul>
+  <button type="button" class="editor-only add-entry-btn" data-add-entry="custom-{{ section.id }}">+ Item</button>
+  {% endif %}
+</section>
+{% endmacro %}
+
 {% set section_macros = {
   "summary": section_summary,
   "experience": section_experience,
@@ -666,8 +692,16 @@
 } %}
 
 {% for section_id in section_order %}
-{% if section_id not in hidden_sections and section_id in section_macros %}
+{% if section_id not in hidden_sections %}
+  {% if section_id in section_macros %}
 {{ section_macros[section_id]() }}
+  {% else %}
+    {% for cs in custom_sections %}
+      {% if cs.id == section_id %}
+{{ section_custom(cs) }}
+      {% endif %}
+    {% endfor %}
+  {% endif %}
 {% endif %}
 {% endfor %}
 

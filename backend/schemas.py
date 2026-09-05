@@ -70,6 +70,20 @@ class EducationEntry(BaseModel):
     notes: list[str] = Field(default_factory=list)
 
 
+class CustomSection(BaseModel):
+    """User-defined section beyond the fixed set (e.g. "Volunteer Work",
+    "Publications") - id is a stable slug (see app/render_resume.py's
+    build_resume_html, which appends it to section_order so it can be
+    shown/hidden/reordered in the History editor like any built-in
+    section). Exactly one of items/text is meaningful depending on type;
+    the other stays empty."""
+    id: str = Field(..., min_length=1)
+    title: str = Field(..., min_length=1)
+    type: str = "bullets"  # "bullets" | "text"
+    items: list[str] = Field(default_factory=list)
+    text: str = ""
+
+
 class MasterResume(BaseModel):
     name: str = Field(..., min_length=1)
     title: str = Field(..., min_length=1)
@@ -81,6 +95,7 @@ class MasterResume(BaseModel):
     projects: list[ProjectEntry] = Field(default_factory=list)
     education: list[EducationEntry] = Field(default_factory=list)
     certifications: list[str] = Field(default_factory=list)
+    custom_sections: list[CustomSection] = Field(default_factory=list)
 
 
 # --- Editing a single already-generated resume (from History) ---

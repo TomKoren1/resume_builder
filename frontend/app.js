@@ -419,6 +419,106 @@ function makeTextBlockList(initialCount) {
     return wrap;
 }
 
+function slugifyCustomId(title, index) {
+    const slug = (title || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    return 'custom-' + (slug || ('section-' + index));
+}
+
+// User-defined sections beyond the fixed set (Volunteer Work, Publications,
+// etc.) - each one is either a bulleted list (reuses makeListEditor) or a
+// free-text block, picked per-section via a type <select>. id is derived
+// from the title (slugifyCustomId) rather than stored/tracked separately,
+// so it stays stable across repeated saves as long as the title doesn't
+// change - see backend/schemas.py's CustomSection and app/render_resume.py
+// for how that id then drives section_order/hidden_sections.
+function makeCustomSectionsEditor(container, sections) {
+    container.innerHTML = '';
+
+    function addCard(sec) {
+        const data = sec || { title: '', type: 'bullets', items: [], text: '' };
+        const card = document.createElement('div');
+        card.className = 'card';
+
+        const header = document.createElement('div');
+        header.className = 'card-header';
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'remove-btn';
+        removeBtn.textContent = '×';
+        removeBtn.addEventListener('click', () => card.remove());
+        header.appendChild(removeBtn);
+        card.appendChild(header);
+
+        const { group: titleGroup, input: titleInput } = makeTextField('Section Title', data.title);
+        titleInput.dataset.fieldKey = 'title';
+        card.appendChild(titleGroup);
+
+        const typeLabel = document.createElement('label');
+        typeLabel.textContent = 'Type';
+        card.appendChild(typeLabel);
+        const typeSelect = document.createElement('select');
+        typeSelect.dataset.fieldKey = 'type';
+        [['bullets', 'Bulleted list'], ['text', 'Free text']].forEach(([value, label]) => {
+            const opt = document.createElement('option');
+            opt.value = value;
+            opt.textContent = label;
+            if (value === data.type) opt.selected = true;
+            typeSelect.appendChild(opt);
+        });
+        card.appendChild(typeSelect);
+
+        const itemsLabel = document.createElement('label');
+        itemsLabel.textContent = 'Items';
+        const itemsEditor = makeListEditor(data.items);
+        itemsEditor.dataset.fieldKey = 'items';
+        card.appendChild(itemsLabel);
+        card.appendChild(itemsEditor);
+
+        const textLabel = document.createElement('label');
+        textLabel.textContent = 'Text';
+        const textArea = document.createElement('textarea');
+        textArea.dataset.fieldKey = 'text';
+        textArea.value = data.text || '';
+        textArea.style.height = '90px';
+        card.appendChild(textLabel);
+        card.appendChild(textArea);
+
+        function syncVisibility() {
+            const isBullets = typeSelect.value === 'bullets';
+            itemsLabel.hidden = !isBullets;
+            itemsEditor.hidden = !isBullets;
+            textLabel.hidden = isBullets;
+            textArea.hidden = isBullets;
+        }
+        typeSelect.addEventListener('change', syncVisibility);
+        syncVisibility();
+
+        container.insertBefore(card, container.lastElementChild);
+    }
+
+    (sections || []).forEach(addCard);
+
+    const addBtn = document.createElement('button');
+    addBtn.type = 'button';
+    addBtn.className = 'add-btn';
+    addBtn.textContent = '+ Add Custom Section';
+    addBtn.addEventListener('click', () => addCard(null));
+    container.appendChild(addBtn);
+}
+
+function collectCustomSections(container) {
+    return Array.from(container.querySelectorAll(':scope > .card')).map((card, i) => {
+        const title = card.querySelector('[data-field-key="title"]').value.trim();
+        return {
+            id: slugifyCustomId(title, i),
+            title,
+            type: card.querySelector('[data-field-key="type"]').value,
+            items: collectListEditor(card.querySelector('[data-field-key="items"]')),
+            text: card.querySelector('[data-field-key="text"]').value.trim(),
+        };
+    }).filter(s => s.title); // an unnamed section can't be shown/targeted - drop it rather than save junk
+}
+
 function makeTextField(labelText, value) {
     const label = document.createElement('label');
     label.textContent = labelText;
@@ -577,6 +677,12 @@ function renderResumeFields(container, resume) {
     const certEditor = makeListEditor(resume.certifications);
     certBlock.appendChild(certEditor);
     container._certEditor = certEditor;
+
+    const customBlock = renderSectionHeader(container, 'Custom Sections');
+    const customContainer = document.createElement('div');
+    customBlock.appendChild(customContainer);
+    makeCustomSectionsEditor(customContainer, resume.custom_sections);
+    container._customContainer = customContainer;
 }
 
 function collectResumeFields(container) {
@@ -593,6 +699,7 @@ function collectResumeFields(container) {
         projects: collectCardList(container._projContainer, CARD_SCHEMAS.projects),
         education: collectCardList(container._eduContainer, CARD_SCHEMAS.education),
         certifications: collectListEditor(container._certEditor),
+        custom_sections: collectCustomSections(container._customContainer),
     };
 }
 
@@ -601,12 +708,16 @@ function collectResumeFields(container) {
 // ---------- Import master resume from existing resumes ----------
 let importTextBlocksEl = null;
 
-function initImportSection() {
+function resetImportInputs() {
     const container = document.getElementById('importTextBlocks');
     container.innerHTML = '';
     importTextBlocksEl = makeTextBlockList(1);
     container.appendChild(importTextBlocksEl);
     document.getElementById('importFiles').value = '';
+}
+
+function initImportSection() {
+    resetImportInputs();
     const statusEl = document.getElementById('importStatus');
     statusEl.className = '';
     statusEl.textContent = '';
@@ -646,12 +757,16 @@ document.getElementById('importResumesBtn').addEventListener('click', async () =
         statusEl.className = 'success';
         statusEl.textContent = data.message;
 
+        // Either way, the form now shows the freshly-extracted data and
+        // the import inputs reset - so it's obvious something happened,
+        // rather than a status line appearing above an unchanged screen.
         if (data.auto_saved) {
-            loadMasterResume();
+            await loadMasterResume();
         } else {
             renderMasterResumeForm(data.data);
-            document.getElementById('masterResumeForm').scrollIntoView({ behavior: 'smooth' });
         }
+        document.getElementById('masterResumeForm').scrollIntoView({ behavior: 'smooth' });
+        resetImportInputs();
     } catch (error) {
         statusEl.className = 'error';
         statusEl.textContent = `Error: ${error.message}`;
@@ -836,7 +951,10 @@ function renderSectionControls() {
         });
 
         const label = document.createElement('span');
-        label.textContent = SECTION_LABELS[id] || id;
+        // Custom sections aren't in the fixed SECTION_LABELS map - fall
+        // back to whatever title was last saved on the master resume.
+        const customSection = (currentOriginalResume.custom_sections || []).find(cs => cs.id === id);
+        label.textContent = SECTION_LABELS[id] || (customSection && customSection.title) || id;
 
         const upBtn = document.createElement('button');
         upBtn.type = 'button';
@@ -995,6 +1113,13 @@ function newSkillEntry(doc) {
     ]);
 }
 
+function newCustomItemEntry(doc) {
+    return dEl(doc, 'li', { 'data-entry': 'custom-item' }, [
+        editableSpan(doc, 'text', 'New item'),
+        removeBtnEl(doc),
+    ]);
+}
+
 const ADD_ENTRY_CONFIG = {
     experience: { listSelector: '[data-list="experience"]', factory: newExperienceEntry },
     project: { listSelector: '[data-list="projects"]', factory: newProjectEntry },
@@ -1032,7 +1157,13 @@ function wireEditorControls(doc) {
 
         const addEntryBtn = e.target.closest('.add-entry-btn');
         if (addEntryBtn) {
-            const config = ADD_ENTRY_CONFIG[addEntryBtn.dataset.addEntry];
+            const key = addEntryBtn.dataset.addEntry;
+            // Custom sections have a dynamic id (data-add-entry="custom-<id>"),
+            // so they can't be pre-registered in the static config above -
+            // the list selector is directly derivable from that same value.
+            const config = key.startsWith('custom-')
+                ? { listSelector: `[data-list="${key}"]`, factory: newCustomItemEntry }
+                : ADD_ENTRY_CONFIG[key];
             const list = config && doc.querySelector(config.listSelector);
             if (list) {
                 const newEl = config.factory(doc);
@@ -1126,7 +1257,25 @@ function serializeIframeResume(doc, original) {
         if (heading) section_titles[id] = heading.textContent.trim();
     });
 
-    return { name, title, contact, summary, experience, projects, education, certifications, languages, skills, section_titles };
+    // id/type are preserved from the original entry (never re-derived
+    // from the on-page title) - section_order/hidden_sections reference
+    // a custom section by id, so regenerating it from a possibly-edited
+    // title would orphan it from its own ordering/visibility state.
+    const custom_sections = (original.custom_sections || []).map(cs => {
+        const sectionEl = doc.querySelector(`[data-section="${cs.id}"]`);
+        if (!sectionEl) return cs;
+        const headingEl = sectionEl.querySelector('[data-field="section_title"]');
+        const editedTitle = headingEl ? headingEl.textContent.trim() : cs.title;
+        if (cs.type === 'text') {
+            const textEl = sectionEl.querySelector('[data-field="custom_text"]');
+            return { ...cs, title: editedTitle, text: textEl ? htmlToMarkdown(textEl) : cs.text };
+        }
+        const items = Array.from(sectionEl.querySelectorAll('[data-entry="custom-item"] [data-field="text"]'))
+            .map(htmlToMarkdown).filter(Boolean);
+        return { ...cs, title: editedTitle, items };
+    });
+
+    return { name, title, contact, summary, experience, projects, education, certifications, languages, skills, custom_sections, section_titles };
 }
 
 async function openHistoryEditor(id) {

@@ -174,14 +174,29 @@ def build_resume_html(resume_data, template_path):
     # bold "every concrete tool or metric", which includes skill names) -
     # without this, the literal ** markers show up as visible text.
     resume_data["skills_flat"] = [highlight_text(s) for s in flatten_skills(resume_data.get("skills"))]
-    resume_data.setdefault("section_order", DEFAULT_SECTION_ORDER)
+    resume_data.setdefault("section_order", list(DEFAULT_SECTION_ORDER))
     resume_data.setdefault("hidden_sections", [])
     resume_data.setdefault("theme", DEFAULT_THEME)
     resume_data.setdefault("color", DEFAULT_COLOR)
     resume_data.setdefault("photo", "")
+    resume_data.setdefault("custom_sections", [])
     # Merge rather than setdefault: an entry that only renamed one section
     # still needs the other six filled in with their defaults.
     resume_data["section_titles"] = {**DEFAULT_SECTION_TITLES, **resume_data.get("section_titles", {})}
+
+    # Custom sections aren't part of DEFAULT_SECTION_ORDER (they don't
+    # exist until a user adds one), so append any that aren't already
+    # present instead of overwriting - a resume whose section_order was
+    # already explicitly saved (reordered/hidden in the History editor)
+    # keeps that arrangement; only genuinely new custom section ids get
+    # tacked on at the end.
+    for cs in resume_data["custom_sections"]:
+        if cs["type"] == "text":
+            cs["text"] = highlight_text(cs.get("text", ""))
+        else:
+            cs["items"] = [highlight_text(i) for i in cs.get("items", [])]
+        if cs["id"] not in resume_data["section_order"]:
+            resume_data["section_order"].append(cs["id"])
 
     # Contact links: LinkedIn/GitHub are stored as bare-or-schemed URLs;
     # the template shows a short label ("LinkedIn"/"GitHub") that links here.
