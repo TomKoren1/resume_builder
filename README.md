@@ -27,7 +27,7 @@ below.
 
 ## How the web app works
 
-![Architecture overview](docs/images/architecture-overview.png)
+![Architecture overview](docs/images/architecture-overview.jpg)
 
 1. Sign in with Google or GitHub (`backend/auth.py`) and add your own
    Anthropic API key under Account — stored encrypted (AWS KMS, see
@@ -47,7 +47,7 @@ below.
    user-defined custom sections, with save + rollback across versions and
    an "import from an old resume" auto-fill.
 
-![Request lifecycle](docs/images/request-flow.png)
+![Request lifecycle](docs/images/request-flow.jpg)
 
 Every user's master resume, history, and encrypted API key are scoped to
 their own account (`users` table, `user_id` on every row) — there's no
@@ -58,7 +58,7 @@ never auto-loaded into any real user's account; see
 
 ## Security
 
-![Security layers](docs/images/security-layers.png)
+![Security layers](docs/images/security-layers.jpg)
 
 - **Network**: Cloudflare Tunnel only — the home router has no open
   inbound ports at all; the tunnel is an outbound-only connection.
@@ -127,7 +127,7 @@ side.
 
 ### Networking
 
-![Networking](docs/images/networking.png)
+![Networking](docs/images/networking.jpg)
 
 The home router has **no open inbound ports at all** — public traffic
 reaches the cluster only via a `cloudflared` pod holding an

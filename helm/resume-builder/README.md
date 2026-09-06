@@ -17,7 +17,7 @@ this chart is applied by ArgoCD, not by hand — see
 | `templates/` | This app's own resources (deployments, services, ingress, PVC, SealedSecrets, `cloudflared`, the Grafana dashboard ConfigMap) plus `_helpers.tpl` (name templating). `cloudflared-deployment.yaml`/`cloudflared-sealedsecret.yaml` hold the tunnel that exposes the app publicly (outbound-only, no inbound port ever opened — see the root README's [Networking](../../README.md#networking)); its `TUNNEL_TOKEN` maps to the same in-cluster Ingress everything else uses, not a separate Service. |
 | `dashboards/resume-builder.json` | The app's Grafana dashboard — loaded into a ConfigMap by `templates/grafana-dashboard-configmap.yaml` via `.Files.Get`, picked up by Grafana's sidecar (label `grafana_dashboard: "1"`). Includes generation-rate/latency panels, backend error/warning logs (filtered by the `severity` label the app's Loki handler attaches, not a text match), a log-volume-by-pod graph, a live log tail, and an active-alerts table + timeline sourced from Prometheus's `ALERTS` metric. |
 
-![Monitoring](../../docs/images/monitoring.png)
+![Monitoring](../../docs/images/monitoring.jpg)
 
 ## Key `values.yaml` sections (app config)
 
