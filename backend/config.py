@@ -25,7 +25,13 @@ if not SESSION_SECRET_KEY:
         "restart. Set SESSION_SECRET_KEY in production.",
         file=sys.stderr,
     )
-API_KEY_ENCRYPTION_KEY = os.environ.get("API_KEY_ENCRYPTION_KEY")
+API_KEY_ENCRYPTION_KEY = os.environ.get("API_KEY_ENCRYPTION_KEY")  # Fernet - fallback-only, see auth.py
+# AWS KMS key (see infra/kms.tf) that now does the real encryption for
+# per-user Anthropic API keys - a dedicated IAM user's credentials
+# (AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY, see infra/iam_kms_user.tf)
+# reach it via boto3's default credential chain, so no separate config
+# constant for those two is needed here.
+AWS_KMS_KEY_ID = os.environ.get("KMS_KEY_ID")
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
 GITHUB_CLIENT_ID = os.environ.get("GITHUB_CLIENT_ID")

@@ -1,22 +1,27 @@
 # `infra/`
 
-Terraform for the AWS side of the **standalone CI pipeline**
-(`.github/workflows/generate-resume.yml`) — not used by the deployed web
-app at all, which has no AWS credentials and always falls back to the
-direct Anthropic API (see the root README's
-[Bedrock fallback](../README.md#bedrock-fallback-anthropic-api)).
+Terraform for this project's AWS side, two independent pieces:
 
-Provisions exactly one thing: a GitHub Actions OIDC trust so that workflow
-can call AWS Bedrock without any long-lived AWS credentials stored in
-GitHub.
+1. The **standalone CI pipeline** (`.github/workflows/generate-resume.yml`)
+   — not used by the deployed web app, and the web app still has no
+   credentials that can reach it. Bedrock calls from the live app always
+   fall back to the direct Anthropic API (see the root README's
+   [Bedrock fallback](../README.md#bedrock-fallback-anthropic-api)).
+2. **The live backend pod's per-user API key encryption** (KMS) — the one
+   thing the deployed web app *does* now hold real, narrowly-scoped AWS
+   credentials for. Its IAM policy grants exactly `kms:Encrypt`/
+   `kms:Decrypt`/`kms:DescribeKey` on one key; it cannot call Bedrock or
+   anything else.
 
 | File | Purpose |
 |---|---|
-| `oidc.tf` | The GitHub Actions OIDC identity provider, and an IAM role assumable only via `sts:AssumeRoleWithWebIdentity` from this repo's `main` branch. The trust condition wildcards GitHub's optional `@<id>` suffix on the `sub` claim (anti-repojacking protection for renamed/transferred repos) — an exact match would otherwise reject valid tokens. |
-| `iam.tf` | The IAM policy: `bedrock:InvokeModel` only, scoped to the exact ARNs needed. A Bedrock cross-region inference profile ID (e.g. `us.anthropic.claude-...`) needs permission on **both** the inference-profile ARN itself *and* the underlying foundation-model ARN in every region the profile can route to — granting only one half causes `AccessDeniedException` at invoke time even though the policy "looks" like it covers the model. |
+| `oidc.tf` | (CI pipeline) The GitHub Actions OIDC identity provider, and an IAM role assumable only via `sts:AssumeRoleWithWebIdentity` from this repo's `main` branch. The trust condition wildcards GitHub's optional `@<id>` suffix on the `sub` claim (anti-repojacking protection for renamed/transferred repos) — an exact match would otherwise reject valid tokens. |
+| `iam.tf` | (CI pipeline) The IAM policy: `bedrock:InvokeModel` only, scoped to the exact ARNs needed. A Bedrock cross-region inference profile ID (e.g. `us.anthropic.claude-...`) needs permission on **both** the inference-profile ARN itself *and* the underlying foundation-model ARN in every region the profile can route to — granting only one half causes `AccessDeniedException` at invoke time even though the policy "looks" like it covers the model. |
+| `kms.tf` | (live backend) The KMS key that encrypts per-user Anthropic API keys (`backend/auth.py`), plus its `alias/resume-builder-api-keys` alias. Automatic yearly key rotation; a 30-day deletion window so destroying this resource is a "confirm within 30 days" mistake, not instant and irreversible for every stored user's key. |
+| `iam_kms_user.tf` | (live backend) A **separate, dedicated** IAM user + least-privilege policy + long-lived access key for the running pod — deliberately not the OIDC role above, since that's short-lived and only assumable from GitHub Actions, and a persistent pod on a bare k3s cluster has no EKS/IRSA equivalent to use instead. |
 | `variables.tf` / `terraform.tfvars.example` | AWS account ID, GitHub org/repo/branch, Bedrock model ID and its underlying routing regions. |
 | `provider.tf` | Standard AWS provider config. For local testing against LocalStack, run via `tflocal` (transparent endpoint rewriting) instead of `terraform` directly — no LocalStack-specific code needed here. |
-| `outputs.tf` | `github_actions_role_arn` — paste into the `AWS_ROLE_ARN` repo secret. |
+| `outputs.tf` | `github_actions_role_arn` — paste into the `AWS_ROLE_ARN` repo secret. `kms_key_id`, `backend_aws_access_key_id`, `backend_aws_secret_access_key` — paste into the backend SealedSecret regeneration command, see `helm/resume-builder/README.md`. |
 
 ## Applying
 

@@ -83,6 +83,20 @@ kubectl create secret generic resume-builder-secrets -n resume-builder \
   -o yaml > templates/backend-sealedsecret.yaml
 ```
 
+This **replaces the whole file** — repeat every existing `--from-literal=`
+alongside whatever you're adding/rotating, including
+`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `KMS_KEY_ID` (see
+`infra/kms.tf` and `infra/iam_kms_user.tf` — `terraform output
+kms_key_id`, `backend_aws_access_key_id`, `backend_aws_secret_access_key`
+after `terraform apply` in `infra/`) and `API_KEY_ENCRYPTION_KEY`. The
+latter is a deliberate holdover: `backend/auth.py` now encrypts new/saved
+API keys with KMS, but still needs the old Fernet key to read any row
+saved before this migration, lazily re-encrypting it via KMS the next
+time that user generates a resume. Don't drop
+`API_KEY_ENCRYPTION_KEY` from the secret until you're confident every
+active user has been through at least one generation since the KMS
+rollout.
+
 ## Notable design decisions
 
 - **Backend `Deployment` uses `strategy.type: Recreate`**, not the k8s
