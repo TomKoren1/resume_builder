@@ -35,6 +35,30 @@ terraform apply
 Then set the `github_actions_role_arn` output as a repo secret named
 `AWS_ROLE_ARN` for `generate-resume.yml` to use.
 
+**No remote state backend is configured** (`versions.tf` has no `backend`
+block — state is a local `.tfstate` file, gitignored, never committed).
+If you're applying from a machine that's never run `terraform apply` here
+before, but the OIDC role/policy already exist in the real AWS account
+(applied from elsewhere, or by hand), a plain `terraform apply` will try
+to *recreate* `oidc.tf`/`iam.tf`'s resources and fail with "already
+exists" errors — not dangerous, just messy. Scope it to just the KMS/IAM
+pieces instead:
+
+```bash
+terraform apply \
+  -target=aws_kms_key.api_key_encryption \
+  -target=aws_kms_alias.api_key_encryption \
+  -target=aws_iam_user.resume_builder_backend \
+  -target=aws_iam_user_policy.kms_encrypt_decrypt \
+  -target=aws_iam_access_key.resume_builder_backend
+```
+
+Check the plan lists only additions (5 resources, 0 to change/destroy)
+before confirming. The clean long-term fix is `terraform import`-ing the
+existing OIDC/IAM resources into state so a plain `apply` covers
+everything again — not done here, since `-target` was sufficient for a
+one-time KMS rollout.
+
 ## Note on this account's Bedrock access
 
 Bedrock model access needs to be enabled per-model, per-region in the AWS

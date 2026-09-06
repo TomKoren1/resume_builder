@@ -5,17 +5,20 @@ app, the other is a standalone one-shot PDF generator.
 
 ## `build-and-deploy.yml` — CI/CD for the web app
 
-Triggers on push to `main` when `backend/**` or `frontend/**` changes.
-Builds and pushes only the component(s) that actually changed, tagged with
-the short git SHA, then bumps that tag in `helm/resume-builder/values.yaml`
-and commits it back to `main` — which ArgoCD (running in-cluster) picks up
-and syncs. This workflow never touches the cluster directly; see
+Triggers on push to `main` when `backend/**`, `frontend/**`, or `app/**`
+changes (`app/` is baked into the backend image at build time — a
+path-filter gap that once let an `app/`-only change go undeployed until it
+was caught and fixed). Builds and pushes only the component(s) that
+actually changed, tagged with the short git SHA, then bumps that tag in
+`helm/resume-builder/values.yaml` and commits it back to `main` — which
+ArgoCD (running in-cluster) picks up and syncs. This workflow never
+touches the cluster directly; see
 [`../../argocd/README.md`](../../argocd/README.md).
 
 ```
-push (backend/** or frontend/**)
-  ├─ changes          — dorny/paths-filter: which of backend/frontend changed?
-  ├─ build-backend    — docker build+push → ghcr.io/tomkoren1/resume-backend:sha-<short>  (if backend changed)
+push (backend/**, frontend/**, or app/**)
+  ├─ changes          — dorny/paths-filter: which of backend/frontend changed? (an app/** change counts as backend)
+  ├─ build-backend    — docker build+push → ghcr.io/tomkoren1/resume-backend:sha-<short>  (if backend or app changed)
   ├─ build-frontend   — docker build+push → ghcr.io/tomkoren1/resume-frontend:sha-<short> (if frontend changed)
   ├─ update-chart     — yq-bump the changed tag(s) in values.yaml, commit "[skip ci]", push
   └─ notify-failure   — POST to Slack if any of the above failed

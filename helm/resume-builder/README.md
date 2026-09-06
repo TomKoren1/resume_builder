@@ -14,8 +14,10 @@ this chart is applied by ArgoCD, not by hand — see
 | `charts/*.tgz` | Those dependencies, **vendored and committed** — `helm template`/`install` works fully offline, no `helm dependency build` needed. |
 | `values.yaml` | App config only — backend/frontend/ingress. Small and stable; see [Key `values.yaml` sections](#key-valuesyaml-sections-app-config) below. |
 | `values-monitoring.yaml` | Everything Grafana/Prometheus/Loki/Alertmanager — split out from `values.yaml` since it's ~200 lines of a completely different concern (alert rules, datasources, dashboards, retention). Layered on top of `values.yaml` via `argocd/application.yaml`'s `spec.source.helm.valueFiles` — **not** picked up automatically by a plain `helm template .`/`helm install`, see [Local testing](#local-testing). |
-| `templates/` | This app's own resources (deployments, services, ingress, PVC, SealedSecrets, the Grafana dashboard ConfigMap) plus `_helpers.tpl` (name templating). |
+| `templates/` | This app's own resources (deployments, services, ingress, PVC, SealedSecrets, `cloudflared`, the Grafana dashboard ConfigMap) plus `_helpers.tpl` (name templating). `cloudflared-deployment.yaml`/`cloudflared-sealedsecret.yaml` hold the tunnel that exposes the app publicly (outbound-only, no inbound port ever opened — see the root README's [Networking](../../README.md#networking)); its `TUNNEL_TOKEN` maps to the same in-cluster Ingress everything else uses, not a separate Service. |
 | `dashboards/resume-builder.json` | The app's Grafana dashboard — loaded into a ConfigMap by `templates/grafana-dashboard-configmap.yaml` via `.Files.Get`, picked up by Grafana's sidecar (label `grafana_dashboard: "1"`). Includes generation-rate/latency panels, backend error/warning logs (filtered by the `severity` label the app's Loki handler attaches, not a text match), a log-volume-by-pod graph, a live log tail, and an active-alerts table + timeline sourced from Prometheus's `ALERTS` metric. |
+
+![Monitoring](../../docs/images/monitoring.png)
 
 ## Key `values.yaml` sections (app config)
 
@@ -24,9 +26,14 @@ this chart is applied by ArgoCD, not by hand — see
   edited by hand outside of that workflow.
 - **`backend.persistence`** — size of the PVC backing the SQLite DB
   (`/data/resume_builder.db`). See [`../../backend/README.md`](../../backend/README.md#persistence).
-- **`ingress.host`** — `resume.local`; the Ingress routes `/generate`,
-  `/history`, `/master-resume` to the backend and everything else to the
-  frontend, all under this one host.
+- **`ingress.hosts`** — a list (`resume.local` for private/Tailscale
+  access, plus the public `resume.resume-4u.com` reachable via the
+  Cloudflare Tunnel — one `Ingress` with a rule per host, not two separate
+  `Ingress` resources, so the routing table is defined exactly once). It
+  routes `/generate`, `/history`, `/master-resume`, `/auth` to the backend
+  and everything else to the frontend, under every listed host.
+- **`cloudflared.image`** — the tunnel client's image; see
+  `templates/cloudflared-deployment.yaml` in the table above.
 
 ## Key `values-monitoring.yaml` sections
 
@@ -107,10 +114,15 @@ rollout.
   that has both fields set, and the field persists on an existing object
   from before this changed unless cleared.
 - **`serviceaccount.yaml`'s IRSA annotation is conditional** on
-  `backend.irsaRoleArn` being set — meaningful only on EKS. On this k3s
-  cluster it's simply omitted; Bedrock calls fail for lack of credentials
-  and the backend falls back to the Anthropic API by design (see the root
-  README's [Bedrock fallback](../../README.md#bedrock-fallback-anthropic-api)).
+  `backend.irsaRoleArn` being set — meaningful only on EKS, and this is a
+  bare k3s cluster, so it's simply omitted. The backend pod does hold real
+  AWS credentials now (`AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` in the
+  SealedSecret), but that IAM user's policy is scoped to exactly
+  `kms:Encrypt`/`kms:Decrypt`/`kms:DescribeKey` on one key (see
+  [`../../infra/README.md`](../../infra/README.md)) — it grants nothing
+  toward Bedrock, so Bedrock calls still fail for lack of *that specific*
+  permission and the backend falls back to the Anthropic API by design
+  (see the root README's [Bedrock fallback](../../README.md#bedrock-fallback-anthropic-api)).
 - **Readiness/liveness probes** hit `/metrics` (backend) and `/` (frontend)
   — cheap, always-available endpoints, not full functional health checks.
 

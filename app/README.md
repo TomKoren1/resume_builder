@@ -11,15 +11,18 @@ Resume data and the shared PDF-rendering logic — used both by the web app
 | `job_description.txt` | Target job posting for the standalone CLI pipeline only (the web app takes the job description as a request body instead). |
 | `contact_info.local.json.example` | Template for `contact_info.local.json` (gitignored) — real contact info for local runs. |
 
-## `master_resume.json` is only ever a *seed*
+## `master_resume.json` is only ever a schema example/placeholder
 
-In the deployed web app, this file is read exactly once — by
-`backend/db.py`'s `init_db()`, the first time the database is empty — to
-seed the first row of `master_resume_versions`. After that, **the database
-is the live source of truth**: edits made through the frontend's "Edit
-Master Resume" tab never touch this file. It stays in git purely as the
-starting point for a fresh deployment (or the standalone CLI pipeline,
-which reads it directly on every run instead of from a database).
+It is **not** auto-loaded into any real user's account. Every new signed-up
+user starts with an empty master resume and fills it in via the frontend's
+"Edit Master Resume" tab (or the "import from old resumes" auto-fill) —
+their data lives entirely in `backend/db.py`'s per-user
+`master_resume_versions` table, **the live source of truth**. This file
+stays in git purely as (a) a concrete example of the schema below, safe to
+make public since it only ever holds placeholder contact info, and (b) the
+input the standalone CLI pipeline tailors against directly on every run
+(see [Standalone CLI pipeline](../README.md#standalone-cli-pipeline) in
+the root README) — that pipeline is unrelated to any web app user's data.
 
 ## Schema
 
@@ -33,13 +36,25 @@ which reads it directly on every run instead of from a database).
   "experience": [{ "company": "...", "role": "...", "start_date": "...", "end_date": "...", "location": "...", "bullets": ["..."] }],
   "projects": [{ "name": "...", "url": "...", "bullets": ["..."] }],
   "education": [{ "school": "...", "degree": "...", "start_date": "...", "end_date": "...", "notes": ["..."] }],
-  "certifications": ["..."]
+  "certifications": ["..."],
+  "custom_sections": [{ "id": "custom-...", "title": "...", "type": "bullets", "items": ["..."], "text": "" }]
 }
 ```
 
+`custom_sections` is user-defined sections beyond the fixed set above
+(e.g. "Volunteer Work", "Publications") — each one is either a bulleted
+list (`type: "bullets"`, use `items`) or free text (`type: "text"`, use
+`text`); `id` is a stable slug derived from the title, referenced by a
+rendered resume's `section_order`/`hidden_sections` (see `EditableResume`
+in `backend/schemas.py`) so it can be shown/hidden/reordered like any
+built-in section.
+
 This exact shape is also what `backend/schemas.py`'s `MasterResume` Pydantic
 model validates, and what the frontend's structured edit form assumes —
-keep all three in sync if the schema ever changes.
+keep all three in sync if the schema ever changes. `template.html` also
+supports 5 visual themes (classic/modern/compact/sidebar/executive) and an
+optional photo (Sidebar theme only) — chosen per-render, not part of the
+master resume schema itself; see `EditableResume` for those fields.
 
 ## `render_resume.py` standalone usage
 

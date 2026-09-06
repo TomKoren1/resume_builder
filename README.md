@@ -10,11 +10,15 @@
 
 An AI-powered resume tailoring app: given a master resume and a target job
 posting, an LLM selects and emphasizes the most relevant experience and
-renders the result to a polished, single-page PDF. It runs as a small web
-app (FastAPI + a static frontend) self-hosted on a personal Kubernetes
-cluster, with a full GitOps pipeline (push to `main` → CI builds the images →
-ArgoCD deploys them) and an observability stack (Prometheus/Grafana/Loki,
-alerting to Slack).
+renders the result to a polished, single-page PDF. It's a genuinely public,
+multi-user web app — anyone can sign in with Google or GitHub (no passwords
+ever stored) and bring their own Anthropic API key (BYOK), so generations
+are billed to each user's own key, never a shared one. It runs as a small
+web app (FastAPI + a static frontend) self-hosted on a personal Kubernetes
+cluster, exposed publicly through a Cloudflare Tunnel (outbound-only — no
+inbound port is ever opened on the home network), with a full GitOps
+pipeline (push to `main` → CI builds the images → ArgoCD deploys them) and
+an observability stack (Prometheus/Grafana/Loki, alerting to Slack).
 
 An earlier, simpler form of this project — tailor via a GitHub Actions
 workflow on every push to a job description file, no web app or cluster
@@ -23,44 +27,76 @@ below.
 
 ## How the web app works
 
-```
-                    ┌─────────────┐      ┌──────────────────────────┐
- job description ──▶│  frontend   │─────▶│  backend (FastAPI)       │
- (typed in the UI)  │ (static SPA)│      │  • tailor via Bedrock,   │
-                     └─────────────┘      │    falls back to the    │
-                                          │    Anthropic API        │
-                                          │  • render PDF (Jinja2 + │
-                                          │    Playwright)          │
-                                          │  • store in SQLite      │
-                                          └──────────────────────────┘
-```
+![Architecture overview](docs/images/architecture-overview.png)
 
-1. The frontend posts the job description to `POST /generate`.
-2. The backend tailors the stored master resume against it (AWS Bedrock
-   first, falling back to the direct Anthropic API on any AWS error — see
-   [Bedrock fallback](#bedrock-fallback-anthropic-api)), renders the result
-   to a PDF, and stores both in a SQLite database.
-3. The frontend's **History** tab lists every past attempt (success or
-   error) with a download link; the **Edit Master Resume** tab is a
-   structured form for editing the master resume itself, with save +
-   rollback across versions.
+1. Sign in with Google or GitHub (`backend/auth.py`) and add your own
+   Anthropic API key under Account — stored encrypted (AWS KMS, see
+   [Per-user API key encryption](#per-user-api-key-encryption)), never
+   returned to the browser.
+2. The frontend posts a job description to `POST /generate`. The backend
+   tailors *your* stored master resume against it, using AWS Bedrock first
+   and falling back to the direct Anthropic API (with *your* key) on any
+   AWS error — see [Bedrock fallback](#bedrock-fallback-anthropic-api) —
+   renders the result to a PDF (Jinja2 + Playwright), and stores both in
+   SQLite, scoped to your account.
+3. The **History** tab lists every past attempt (rename, delete, or
+   click **Edit** to open a Canva-style click-to-edit view of that exact
+   resume — reorder/hide sections, add a custom section on the spot, tweak
+   theme/color/photo, save or save-as-new). The **Edit Master Resume** tab
+   is a structured form for the master resume itself, including
+   user-defined custom sections, with save + rollback across versions and
+   an "import from an old resume" auto-fill.
 
-The master resume is **not** a static file at runtime: `app/master_resume.json`
-is only the seed used the first time the database is empty. After that, the
-database is the live source of truth — see [`app/README.md`](app/README.md).
+![Request lifecycle](docs/images/request-flow.png)
+
+Every user's master resume, history, and encrypted API key are scoped to
+their own account (`users` table, `user_id` on every row) — there's no
+shared or global resume data anymore. `app/master_resume.json` is only
+ever a *placeholder-data seed for a fresh deploy's schema/CLI pipeline*,
+never auto-loaded into any real user's account; see
+[`app/README.md`](app/README.md).
+
+## Security
+
+![Security layers](docs/images/security-layers.png)
+
+- **Network**: Cloudflare Tunnel only — the home router has no open
+  inbound ports at all; the tunnel is an outbound-only connection.
+- **Identity**: OAuth only (Google/GitHub), no passwords ever stored.
+- **Per-user secrets**: each user's Anthropic API key is encrypted with
+  AWS KMS, never returned to the client — see
+  [Per-user API key encryption](#per-user-api-key-encryption).
+- **Application**: every endpoint scoped to the requesting user
+  (`user_id` on every query — no IDOR), rate limiting on
+  `/generate`/`/master-resume/import`, and HTML output is properly
+  escaped (a stored-XSS class of bug, found and fixed in the resume
+  rendering path, since that HTML is also fed to a real headless
+  Chromium server-side for PDF rendering).
+
+## Per-user API key encryption
+
+Each user's Anthropic API key is encrypted with **AWS KMS**
+(`backend/auth.py`), not a static local key — see
+[`infra/README.md`](infra/README.md) for the Terraform that provisions the
+KMS key and the narrowly-scoped IAM user the backend pod uses to reach it.
+Rows saved before this migration (a local Fernet key) are handled by a
+fallback-and-lazy-migrate path: a decrypt that isn't valid KMS ciphertext
+falls back to the old key and immediately re-encrypts that one row via KMS
+— each user's key upgrades itself the next time they generate a resume, no
+downtime or batch migration needed.
 
 ## Repository layout
 
 | Path | Purpose |
 |---|---|
-| [`app/`](app/README.md) | Resume data and the shared PDF-rendering logic: the master resume schema/seed, the Jinja2 print template, and `render_resume.py`. |
-| [`backend/`](backend/README.md) | The FastAPI app — tailoring, PDF rendering, history, master-resume editing/versioning, metrics/logging. |
-| [`frontend/`](frontend/README.md) | The static single-page UI (no build step) — Generate / History / Edit Resume. |
-| [`helm/resume-builder/`](helm/resume-builder/README.md) | The Helm chart that deploys the whole thing to Kubernetes, plus the vendored Prometheus/Grafana/Loki monitoring stack. |
+| [`app/`](app/README.md) | Resume data shape and the shared PDF-rendering logic: the master resume schema/placeholder seed, the Jinja2 print template (5 themes), and `render_resume.py`. |
+| [`backend/`](backend/README.md) | The FastAPI app — OAuth login, BYOK API key encryption (KMS), tailoring, PDF rendering, per-user history/master-resume editing/versioning, metrics/logging. |
+| [`frontend/`](frontend/README.md) | The static single-page UI (no build step, native ES modules) — Generate / History (with a Canva-style click-to-edit view per resume) / Edit Master Resume / Account / Login. |
+| [`helm/resume-builder/`](helm/resume-builder/README.md) | The Helm chart that deploys the whole thing to Kubernetes — app, Cloudflare Tunnel, and the vendored Prometheus/Grafana/Loki monitoring stack. |
 | [`argocd/`](argocd/README.md) | ArgoCD's own config (the `Application` that auto-deploys the chart above, notification wiring) — separate from the app chart since ArgoCD is a cluster-level tool. |
-| [`.github/workflows/`](.github/workflows/README.md) | CI: builds and pushes images on every backend/frontend change, and the original standalone PDF-generation workflow. |
-| [`infra/`](infra/README.md) | Terraform for the AWS side — OIDC + IAM role scoped to `bedrock:InvokeModel`, used by CI. |
-| `resume_contact.py` | Merges real contact info (email/phone) in at runtime — see [Contact info](#contact-info) below. |
+| [`.github/workflows/`](.github/workflows/README.md) | CI: builds and pushes images on every `backend`/`frontend`/`app` change, and the original standalone PDF-generation workflow. |
+| [`infra/`](infra/README.md) | Terraform for the AWS side — the CI pipeline's OIDC + IAM role, and the live backend's KMS key + IAM user for per-user API key encryption. |
+| `resume_contact.py` | Merges the *project owner's* real contact info in for the standalone CLI pipeline only — never applied to any signed-up user's resume; see [Contact info](#contact-info) below. |
 | `project_description.md` | Detailed build log / phase-by-phase project history. |
 
 ## Deployment architecture
@@ -79,7 +115,7 @@ ArgoCD (in-cluster, polls the repo)
      │
      ▼
 k3s cluster
-  frontend + backend (SQLite on a PVC) + Prometheus/Grafana/Loki/Alertmanager
+  frontend + backend (SQLite on a PVC) + cloudflared + Prometheus/Grafana/Loki/Alertmanager
   (alerts → Slack)
 ```
 
@@ -89,12 +125,22 @@ and [`argocd/README.md`](argocd/README.md) for how the pieces fit together,
 and [`.github/workflows/README.md`](.github/workflows/README.md) for the CI
 side.
 
+### Networking
+
+![Networking](docs/images/networking.png)
+
+The home router has **no open inbound ports at all** — public traffic
+reaches the cluster only via a `cloudflared` pod holding an
+**outbound-only** connection to Cloudflare's edge (`helm/resume-builder/templates/cloudflared-deployment.yaml`),
+which routes to the same in-cluster Traefik Ingress as everything else.
+Private/admin access to the server itself goes over Tailscale instead —
+a separate, independent path that also never needs an open port.
+
 ## Running the backend locally (without Kubernetes)
 
 ```bash
 pip install -r backend/requirements.txt
 playwright install chromium
-cp app/contact_info.local.json.example app/contact_info.local.json  # then fill in real info
 
 uvicorn backend.main:app --reload --port 8000
 ```
@@ -107,41 +153,58 @@ whatever's serving the frontend at `http://localhost:8000` or run both
 behind a reverse proxy).
 
 The SQLite DB defaults to `app/resume_builder.db` (gitignored) when
-`DB_PATH` isn't set, so this works without a PVC.
+`DB_PATH` isn't set, so this works without a PVC. Logging in needs real
+Google/GitHub OAuth app credentials and a couple of other env vars first
+— see [`backend/README.md`](backend/README.md#running-locally) for the
+full list.
 
 ## Contact info
 
 `app/master_resume.json` is committed and meant to be safe to make public,
-so it only ever holds placeholder email/phone. The real values are merged
-in at runtime by `resume_contact.py`, from either:
+so it only ever holds placeholder email/phone. `resume_contact.py`'s
+override (real email/phone merged in at runtime) is used **only by the
+standalone CLI pipeline** — `backend/tailor_cli.py` and `app/render_resume.py`'s
+CLI entry point, generating the *project owner's own* resume:
 
-- **Local runs / the standalone CLI pipeline:** copy
+- **Local runs of the CLI pipeline:** copy
   `app/contact_info.local.json.example` to `app/contact_info.local.json`
   and fill in your real email/phone. That file is gitignored and never
   committed.
-- **CI / the deployed app:** set `RESUME_EMAIL` and `RESUME_PHONE` (repo
-  secrets for CI, delivered to the deployed app via the SealedSecret in
-  `helm/resume-builder/templates/backend-sealedsecret.yaml`).
+- **CI (the CLI pipeline only):** `RESUME_EMAIL`/`RESUME_PHONE` repo
+  secrets.
 
-Neither is required — with no override present, the placeholder values are
-used as-is. LinkedIn/GitHub handles are left as real values directly in
+**The deployed multi-user web app deliberately never applies this
+override** — `render_resume()` defaults to `apply_contact_overrides=False`,
+and only the CLI's own `__main__` entry point opts in. This was a real bug
+found and fixed during a security review: the override used to also run on
+every user's `/generate` call and every History-editor save, silently
+replacing *their* contact info with the project owner's. Every signed-up
+user's contact section now always reflects their own master resume, never
+anyone else's.
+
+Neither env var is required for the CLI pipeline — with no override
+present, the placeholder values in `master_resume.json` are used as-is.
+LinkedIn/GitHub handles are left as real values directly in
 `master_resume.json`, since a resume is meant to surface those (unlike a
 phone number, they're not something you'd want to keep off a public copy).
 
 ## Bedrock fallback (Anthropic API)
 
 Tailoring calls Bedrock first. If that call raises a `boto3`/AWS error
-(throttling, access denied, **no credentials** — this is always the case in
-the deployed cluster, which has no AWS credentials at all), it automatically
-retries the same request against the direct Anthropic API instead, using the
-`anthropic` Python SDK and an `ANTHROPIC_API_KEY`:
+(throttling, access denied, no credentials for that specific service —
+**the deployed backend's AWS credentials are narrowly scoped to KMS only**,
+see [Per-user API key encryption](#per-user-api-key-encryption); they
+cannot call Bedrock, so this fallback always fires in the deployed app), it
+automatically retries the same request against the direct Anthropic API
+instead — using **the requesting user's own BYOK key** in the web app, or
+`ANTHROPIC_API_KEY` for the standalone CLI pipeline:
 
 - **Local runs / CI:** `ANTHROPIC_API_KEY` environment variable / repo secret.
-- **The deployed app:** delivered via the same SealedSecret as the contact
-  info above.
-
-If Bedrock fails and `ANTHROPIC_API_KEY` isn't set, the request fails with
-an error explaining that the fallback needs the key.
+- **The deployed web app:** each user's own key, decrypted just-in-time —
+  see [Per-user API key encryption](#per-user-api-key-encryption). If
+  Bedrock fails and the user has no key saved, `/generate` returns a clear
+  400 telling them to add one under Account, rather than falling through
+  to any shared/global key.
 
 ## Standalone CLI pipeline
 
@@ -156,7 +219,7 @@ python backend/tailor_cli.py                                          # -> app/t
 python app/render_resume.py app/tailored_resume.json app/template.html app/output.pdf
 ```
 
-## Infrastructure (AWS/Bedrock access for CI)
+## Infrastructure (AWS side: CI's Bedrock access + the web app's KMS key)
 
 ```bash
 cd infra
@@ -165,12 +228,16 @@ terraform init
 terraform apply
 ```
 
-See [`infra/README.md`](infra/README.md) for what this provisions and why
-it's scoped the way it is.
+See [`infra/README.md`](infra/README.md) for what this provisions (two
+independent pieces — the CI pipeline's OIDC role, and the live web app's
+KMS key + IAM user), why each is scoped the way it is, and an important
+caveat about `-target` if you're applying just one piece against an
+account/state that already has the other.
 
 ## Status
 
-The web app, its Kubernetes deployment, the GitOps pipeline, and the
+The web app, its Kubernetes deployment, the GitOps pipeline, OAuth/BYOK
+multi-user auth, AWS KMS-backed per-user API key encryption, and the
 monitoring stack are all live and verified end to end. See
 `project_description.md` for the detailed phase-by-phase build history,
 known issues, and open questions from earlier in the project.
