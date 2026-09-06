@@ -623,7 +623,13 @@
       <span class="entry-title" data-field="degree" contenteditable="true">{{ edu.degree }}</span> | <span data-field="school" contenteditable="true">{{ edu.school }}</span>
       <span class="entry-range">(<span data-field="start_date" contenteditable="true">{{ edu.start_date }}</span> &ndash; <span data-field="end_date" contenteditable="true">{{ edu.end_date }}</span>)</span>
       <button type="button" class="editor-only remove-entry-btn" title="Remove">&times;</button>
-      <span class="entry-notes" data-field="notes" contenteditable="true">{{ edu.notes | join(" &middot; ") }}</span>
+      {# Literal "·" (U+00B7), not the &middot; HTML entity - the entity
+         name only means anything to an HTML parser, but this string is
+         the OUTPUT of the join filter (not static template markup), so
+         autoescape correctly treats it as plain text and escapes the "&",
+         turning "&middot;" into visible literal text instead of a dot. A
+         real Unicode character has no such ambiguity. #}
+      <span class="entry-notes" data-field="notes" contenteditable="true">{{ edu.notes | join(" · ") }}</span>
     </li>
     {% endfor %}
   </ul>

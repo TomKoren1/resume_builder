@@ -14,12 +14,6 @@ from ..rate_limit import limiter
 from ..schemas import GenerateRequest
 
 try:
-    from resume_contact import apply_contact_overrides
-except ImportError:
-    # Mock fallback if resume_contact isn't present in the Docker build context
-    def apply_contact_overrides(data): pass
-
-try:
     from app.render_resume import render_resume
 except ImportError:
     render_resume = None
@@ -42,7 +36,12 @@ def generate_resume(body: GenerateRequest, request: Request, user: tuple = Depen
 
     try:
         tailored_resume_dict = tailor_resume(master_resume_dict, body.job_description, anthropic_api_key=anthropic_api_key)
-        apply_contact_overrides(tailored_resume_dict)
+        # Deliberately no apply_contact_overrides() here - that merges in
+        # the *project owner's* real email/phone (see resume_contact.py),
+        # correct only for the standalone CLI pipeline (tailor_cli.py).
+        # This is every signed-up user's own resume; their own contact
+        # info (already in master_resume_dict, carried through by the LLM)
+        # must never be silently replaced with the owner's.
         # Chosen at generate-time (frontend Generate tab); also changeable
         # afterward from the History editor, since it's stored on the
         # resume itself just like section_order/hidden_sections.

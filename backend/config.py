@@ -1,5 +1,7 @@
 """All environment-derived configuration in one place."""
 import os
+import secrets
+import sys
 
 DB_PATH = os.environ.get("DB_PATH", "app/resume_builder.db")
 LOKI_URL = os.environ.get("LOKI_URL", "http://loki:3100/loki/api/v1/push")
@@ -7,7 +9,22 @@ SLACK_WEBHOOK_URL = os.environ.get("SLACK_WEBHOOK")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 
 # --- Auth (multi-user web app) ---
-SESSION_SECRET_KEY = os.environ.get("SESSION_SECRET_KEY", "dev-only-insecure-key")
+# This signs every session cookie (see main.py's SessionMiddleware) - if
+# it were ever missing in production and silently fell back to a fixed
+# string, that string is sitting in this file in the public repo, so
+# anyone could forge a valid session cookie for any user_id and log in as
+# them. Generating a random per-process key instead means a missing env
+# var just logs everyone out on that restart (sessions won't survive it)
+# rather than opening an auth bypass with no indication anything is wrong.
+SESSION_SECRET_KEY = os.environ.get("SESSION_SECRET_KEY")
+if not SESSION_SECRET_KEY:
+    SESSION_SECRET_KEY = secrets.token_hex(32)
+    print(
+        "WARNING: SESSION_SECRET_KEY is not set - using a random key for "
+        "this process only. All sessions will be invalidated on the next "
+        "restart. Set SESSION_SECRET_KEY in production.",
+        file=sys.stderr,
+    )
 API_KEY_ENCRYPTION_KEY = os.environ.get("API_KEY_ENCRYPTION_KEY")
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")

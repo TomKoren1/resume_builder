@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
+from markupsafe import Markup
 from playwright.sync_api import sync_playwright
 from pypdf import PdfReader
 
@@ -148,11 +149,19 @@ def highlight_text(text):
     see the system prompt in backend/main.py, which asks it to bold the
     one or two most important words/phrases per bullet). No auto-keyword
     guessing: that produced an inconsistent, scattershot look.
+
+    Returns a Markup instance (not a plain str): build_resume_html() below
+    turns on Jinja autoescape, so every OTHER field (name, company, school,
+    certifications, etc.) now gets HTML-escaped automatically at template
+    render time - this function does its own escaping *before* inserting
+    the literal <strong> tags, so it must tell Jinja "this one's already
+    safe" or autoescape would escape the <strong> tags too, showing them
+    as literal text instead of bolding anything.
     """
     if not text:
         return text
     escaped = html.escape(text)
-    return _BOLD_MARKDOWN_RE.sub(lambda m: f"<strong>{m.group(1)}</strong>", escaped)
+    return Markup(_BOLD_MARKDOWN_RE.sub(lambda m: f"<strong>{m.group(1)}</strong>", escaped))
 
 
 def build_resume_html(resume_data, template_path):
@@ -216,16 +225,41 @@ def build_resume_html(resume_data, template_path):
         if project.get("url"):
             project["url"] = ensure_https(project["url"])
 
-    env = Environment(loader=FileSystemLoader(str(template_path.parent)))
+    # autoescape=True: a plain jinja2.Environment (unlike Flask's) does NOT
+    # escape {{ }} output by default. Every resume field OTHER than the
+    # ones already run through highlight_text() above (name, title,
+    # contact fields, company/role/school names, certifications,
+    # languages, custom section titles, ...) was being inserted as raw
+    # HTML - a stored XSS in every one of those fields, editable by any
+    # signed-up user for their own resume. That's serious here specifically
+    # because this same HTML is loaded into a real headless Chromium
+    # (Playwright, page.set_content()) with full network access to the
+    # rest of the cluster to render the PDF - injected JS wouldn't just be
+    # a cosmetic self-XSS, it would execute server-side with that pod's
+    # network reach. highlight_text()'s own output is pre-escaped and
+    # explicitly marked Markup-safe above, so it isn't double-escaped now.
+    env = Environment(loader=FileSystemLoader(str(template_path.parent)), autoescape=True)
     template = env.get_template(template_path.name)
     return template.render(page_fill_height_px=CONTENT_HEIGHT_PX, **resume_data)
 
 
-def render_resume(resume_json_path, template_path, output_pdf_path):
-    # Merges in real email/phone from the environment or a gitignored local
-    # file (see resume_contact.py); the committed JSON only ever holds
-    # placeholders.
-    resume_data = load_resume_json(resume_json_path)
+def render_resume(resume_json_path, template_path, output_pdf_path, apply_contact_overrides=False):
+    # apply_contact_overrides merges in the *project owner's* real email/
+    # phone from the environment or a gitignored local file (see
+    # resume_contact.py) - correct for the standalone CI pipeline
+    # (tailor_cli.py generates the owner's own resume, see the
+    # __main__ block below), but this same function is also the one
+    # backend/routers/generate.py and routers/history.py use to render
+    # every *other* signed-up user's resume - for them this must stay
+    # off, or every user's contact section would silently show the
+    # owner's real email/phone instead of their own. Defaults to False
+    # since the multi-user web app is the common case now; only the
+    # CLI path opts in explicitly.
+    if apply_contact_overrides:
+        resume_data = load_resume_json(resume_json_path)
+    else:
+        with open(resume_json_path, "r", encoding="utf-8") as f:
+            resume_data = json.load(f)
     html_content = build_resume_html(resume_data, template_path)
 
     with sync_playwright() as p:
@@ -286,7 +320,10 @@ if __name__ == "__main__":
         resume_json = "app/master_resume.json"
 
     try:
-        render_resume(resume_json, template_file, output_pdf)
+        # Standalone CLI entry point (see .github/workflows/generate-resume.yml)
+        # - this is the one legitimate case that wants the owner's real
+        # contact info merged in.
+        render_resume(resume_json, template_file, output_pdf, apply_contact_overrides=True)
     except ValueError as e:
         print(f"Error: invalid resume data in {resume_json}: {e}")
         sys.exit(1)
