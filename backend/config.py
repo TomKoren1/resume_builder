@@ -44,6 +44,11 @@ SESSION_COOKIE_SECURE = os.environ.get("SESSION_COOKIE_SECURE", "false").lower()
 
 BEDROCK_MODEL_ID = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
 BEDROCK_REGION = "us-east-1"
+# Bedrock is billed to the app owner's AWS account, not the requesting
+# user - only this one account may use it. Every other user's /generate
+# call goes straight to their own BYOK Anthropic key, never Bedrock, so
+# nobody else's usage ever touches the owner's AWS bill.
+BEDROCK_ALLOWED_USER_ID = int(os.environ.get("BEDROCK_ALLOWED_USER_ID", "1"))
 ANTHROPIC_MODEL_ID = "claude-sonnet-4-5-20250929"
 
 TEMPLATE_PATH = "app/template.html"

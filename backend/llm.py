@@ -83,21 +83,31 @@ def call_anthropic_api(user_text, api_key=None):
     return response.content[0].text
 
 
-def tailor_resume(master_resume, job_description, anthropic_api_key=None):
-    """Calls Bedrock first, falls back to the Anthropic API on any AWS
-    error, strips a ```json markdown fence if present, and returns the
-    parsed tailored resume dict. Raises json.JSONDecodeError if the model
-    didn't return valid JSON, or the underlying LLM exception otherwise.
+def tailor_resume(master_resume, job_description, anthropic_api_key=None, use_bedrock=True):
+    """Calls Bedrock first (if use_bedrock), falls back to the Anthropic
+    API on any AWS error, strips a ```json markdown fence if present, and
+    returns the parsed tailored resume dict. Raises json.JSONDecodeError
+    if the model didn't return valid JSON, or the underlying LLM
+    exception otherwise.
 
     anthropic_api_key: the calling user's own key (multi-user web app
-    only - see routers/generate.py). Bedrock stays the shared,
-    server-side-credentialed first attempt either way; only the
-    Anthropic fallback becomes per-user.
+    only - see routers/generate.py).
+
+    use_bedrock: False skips Bedrock entirely and goes straight to the
+    Anthropic API. Bedrock is billed to the app owner's AWS account -
+    routers/generate.py only passes True for BEDROCK_ALLOWED_USER_ID, so
+    no other user's generation can ever touch that bill, even as a
+    fallback attempt.
     """
     user_text = (
         f"Here is my master JSON resume:\n{json.dumps(master_resume)}\n\n"
         f"Here is the target job description:\n{job_description}"
     )
+
+    if not use_bedrock:
+        with LLM_LATENCY.labels(provider='anthropic').time():
+            response_text = call_anthropic_api(user_text, api_key=anthropic_api_key)
+        return json.loads(_strip_json_fence(response_text))
 
     with LLM_LATENCY.labels(provider='bedrock').time():
         logger.info(f"Calling AWS Bedrock ({config.BEDROCK_MODEL_ID})...")

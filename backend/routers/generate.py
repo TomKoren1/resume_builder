@@ -4,7 +4,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from .. import db
+from .. import config, db
 from ..auth import get_current_user_with_key
 from ..config import PDF_SCRATCH_PATH, TAILORED_OUTPUT_PATH, TEMPLATE_PATH
 from ..llm import tailor_resume
@@ -35,7 +35,14 @@ def generate_resume(body: GenerateRequest, request: Request, user: tuple = Depen
         raise HTTPException(status_code=400, detail="No master resume stored. Fill one in under Edit Master Resume first.")
 
     try:
-        tailored_resume_dict = tailor_resume(master_resume_dict, body.job_description, anthropic_api_key=anthropic_api_key)
+        # Bedrock is billed to the owner's AWS account - only that one
+        # account may use it. Every other user is BYOK-only, straight to
+        # the Anthropic API with their own key, no Bedrock attempt at all.
+        use_bedrock = user_id == config.BEDROCK_ALLOWED_USER_ID
+        tailored_resume_dict = tailor_resume(
+            master_resume_dict, body.job_description,
+            anthropic_api_key=anthropic_api_key, use_bedrock=use_bedrock,
+        )
         # Deliberately no apply_contact_overrides() here - that merges in
         # the *project owner's* real email/phone (see resume_contact.py),
         # correct only for the standalone CLI pipeline (tailor_cli.py).

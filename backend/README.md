@@ -127,6 +127,10 @@ using any endpoint except `/metrics`) needs real values for:
 Optional: `AWS_KMS_KEY_ID` + real AWS credentials to exercise the KMS path
 instead of the Fernet fallback; `ANTHROPIC_API_KEY` only matters for the
 *standalone CLI pipeline* (`tailor_cli.py`) — the web app always uses
-BYOK. `SESSION_SECRET_KEY` doesn't need setting for local dev (a random
+BYOK, except for `BEDROCK_ALLOWED_USER_ID` (default `1`, the owner's own
+account), the only user id `/generate` will ever call Bedrock for — see
+[Bedrock fallback](../README.md#bedrock-fallback-anthropic-api). Every
+other user id skips Bedrock entirely, not just on failure.
+`SESSION_SECRET_KEY` doesn't need setting for local dev (a random
 per-process one is generated automatically, see
 [Session/secret hygiene](#sessionsecret-hygiene)).

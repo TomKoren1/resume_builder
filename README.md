@@ -193,22 +193,25 @@ phone number, they're not something you'd want to keep off a public copy).
 
 ## Bedrock fallback (Anthropic API)
 
-Tailoring calls Bedrock first. The deployed backend's AWS credentials
-(the `resume-builder-backend` IAM user, see
+Bedrock is billed to the app owner's AWS account, so **only one account
+(`BEDROCK_ALLOWED_USER_ID`, default the owner's own user id, `1`) is
+ever allowed to use it** — every other signed-up user's `/generate` call
+skips Bedrock entirely and goes straight to the direct Anthropic API with
+their own BYOK key (`backend/llm.py`'s `tailor_resume(..., use_bedrock=...)`,
+gated in `backend/routers/generate.py`). This isn't a fallback-on-failure
+distinction for other users; Bedrock is never attempted for them at all,
+so their usage can never touch the owner's AWS bill.
+
+For the allowed account, tailoring calls Bedrock first. The deployed
+backend's AWS credentials (the `resume-builder-backend` IAM user, see
 [Per-user API key encryption](#per-user-api-key-encryption)) are scoped to
 exactly two things: KMS encrypt/decrypt on the one API-key-encryption key,
-and `bedrock:InvokeModel` on the configured model — narrow, but no longer
-KMS-only as it once was; that gap (Bedrock permissions were wired up only
-for the CI pipeline's separate OIDC role, never for this pod's own
-identity) meant every deployed-app call fell back to Anthropic
-regardless of the account's actual Bedrock access, until it was found and
-fixed (see `infra/iam_kms_user.tf`'s `bedrock_invoke_model` policy).
-
-If the Bedrock call still raises a `boto3`/AWS error (throttling, a model
-not enabled in this account/region, a real outage), it automatically
-retries the same request against the direct Anthropic API instead —
-using **the requesting user's own BYOK key** in the web app, or
-`ANTHROPIC_API_KEY` for the standalone CLI pipeline:
+and `bedrock:InvokeModel` on the configured model. If that Bedrock call
+raises a `boto3`/AWS error (throttling, a model not enabled in this
+account/region, a real outage), it automatically retries the same
+request against the direct Anthropic API instead — using **that same
+user's own BYOK key** in the web app, or `ANTHROPIC_API_KEY` for the
+standalone CLI pipeline:
 
 - **Local runs / CI:** `ANTHROPIC_API_KEY` environment variable / repo secret.
 - **The deployed web app:** each user's own key, decrypted just-in-time —
