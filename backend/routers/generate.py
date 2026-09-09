@@ -77,12 +77,22 @@ def generate_resume(body: GenerateRequest, request: Request, user: tuple = Depen
             user_id, body.job_description, status='success',
             tailored_resume=tailored_resume_dict, pdf_bytes=pdf_bytes,
         )
-        download_url = str(request.base_url) + f"history/{history_id}/download" if pdf_bytes else None
-
-        if download_url:
-            notify_slack(f"✅ Resume generated: {download_url}")
+        # Absolute, for the Slack notification (read outside the browser,
+        # so it needs a real scheme/host - unrelated to the bug below).
+        absolute_download_url = str(request.base_url) + f"history/{history_id}/download" if pdf_bytes else None
+        if absolute_download_url:
+            notify_slack(f"✅ Resume generated: {absolute_download_url}")
         else:
             notify_slack("⚠️ Resume JSON was generated but the PDF render failed - check the logs.")
+
+        # Relative, for the frontend: uvicorn runs without --proxy-headers
+        # behind cloudflared -> Traefik, so request.base_url always reports
+        # "http://" even though the site is only ever served over https.
+        # Handing that to the browser as a link's href makes it drop the
+        # Secure session cookie on click (SESSION_COOKIE_SECURE=true),
+        # producing a 401 on download. A relative path resolves against
+        # the page's own (https) origin instead.
+        download_url = f"/history/{history_id}/download" if pdf_bytes else None
 
         return {
             "message": "Success! Resume generated and saved.",

@@ -38,3 +38,24 @@ resource "aws_iam_user_policy" "kms_encrypt_decrypt" {
 resource "aws_iam_access_key" "resume_builder_backend" {
   user = aws_iam_user.resume_builder_backend.name
 }
+
+# The live pod invokes Bedrock directly (backend/main.py), but iam.tf's
+# bedrock_invoke_model policy is attached only to the GitHub-Actions OIDC
+# role, which this pod can never assume (bare k3s, no IRSA). Grant the
+# same ARNs to this user too, reusing iam.tf's local.bedrock_model_arns
+# so the two policies can't drift apart.
+resource "aws_iam_user_policy" "bedrock_invoke_model" {
+  name = "bedrock-invoke-model-least-privilege"
+  user = aws_iam_user.resume_builder_backend.name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["bedrock:InvokeModel"]
+        Resource = local.bedrock_model_arns
+      }
+    ]
+  })
+}

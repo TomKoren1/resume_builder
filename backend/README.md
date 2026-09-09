@@ -80,6 +80,18 @@ back to a fixed value — a missing env var just logs everyone out on that
 restart, rather than silently signing sessions with a value anyone could
 read out of this public repo.
 
+`SESSION_COOKIE_SECURE=true` in production means the cookie is
+browser-enforced HTTPS-only. `uvicorn` runs without `--proxy-headers`
+behind `cloudflared` → Traefik, so `request.base_url` always reports
+`http://` regardless of the real (HTTPS) scheme the browser used — any
+endpoint that hands the browser an absolute link built from it (e.g. the
+old `download_url`) gets its Secure cookie silently withheld on click,
+producing a 401 that has nothing to do with actually being logged in.
+`/generate`, `/history/{id}` (`PUT`), and `/history/{id}/save-as` return
+`download_url` as a **relative** path for exactly this reason — it
+resolves against the page's own origin instead of trusting the scheme
+this backend thinks it's serving on.
+
 ## Persistence
 
 SQLite at `DB_PATH` (default `app/resume_builder.db`, so this works

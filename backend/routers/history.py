@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.responses import HTMLResponse
 
 from .. import db
@@ -69,7 +69,7 @@ def download_history_pdf(history_id: int, user_id: int = Depends(get_current_use
 
 
 @router.put("/history/{history_id}")
-def update_history_entry(history_id: int, resume: EditableResume, http_request: Request, user_id: int = Depends(get_current_user)):
+def update_history_entry(history_id: int, resume: EditableResume, user_id: int = Depends(get_current_user)):
     """Overwrites this history entry's content and PDF in place - editing
     a past generation, not the master resume (which /master-resume owns)."""
     existing = db.get_history_entry(user_id, history_id)
@@ -81,7 +81,14 @@ def update_history_entry(history_id: int, resume: EditableResume, http_request: 
 
     return {
         "message": "Saved.",
-        "download_url": str(http_request.base_url) + f"history/{history_id}/download",
+        # Deliberately relative, not str(http_request.base_url) + "...":
+        # uvicorn runs without --proxy-headers behind cloudflared -> Traefik,
+        # so base_url always reports "http://" even though the site is only
+        # ever served over https. The frontend then requests a Secure
+        # session cookie (SESSION_COOKIE_SECURE=true) over that plain-http
+        # link, and the browser correctly withholds it, giving a 401. A
+        # relative path resolves against the page's own (https) origin.
+        "download_url": f"/history/{history_id}/download",
     }
 
 
@@ -101,7 +108,7 @@ def delete_history_entry(history_id: int, user_id: int = Depends(get_current_use
 
 
 @router.post("/history/{history_id}/save-as")
-def save_history_entry_as_new(history_id: int, resume: EditableResume, http_request: Request, user_id: int = Depends(get_current_user)):
+def save_history_entry_as_new(history_id: int, resume: EditableResume, user_id: int = Depends(get_current_user)):
     """Same edit, but as a new history entry - the original generation
     (and its PDF) is left untouched."""
     existing = db.get_history_entry(user_id, history_id)
@@ -117,5 +124,5 @@ def save_history_entry_as_new(history_id: int, resume: EditableResume, http_requ
     return {
         "message": "Saved as a new history entry.",
         "history_id": new_id,
-        "download_url": str(http_request.base_url) + f"history/{new_id}/download",
+        "download_url": f"/history/{new_id}/download",
     }
