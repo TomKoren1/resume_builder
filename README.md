@@ -8,6 +8,8 @@
 [![Prometheus](https://img.shields.io/badge/metrics-Prometheus-E6522C?logo=prometheus&logoColor=white)](helm/resume-builder/README.md)
 [![Grafana](https://img.shields.io/badge/dashboards-Grafana-F46800?logo=grafana&logoColor=white)](helm/resume-builder/README.md)
 
+**Live site: [resume.resume-4u.com](https://resume.resume-4u.com)**
+
 An AI-powered resume tailoring app: given a master resume and a target job
 posting, an LLM selects and emphasizes the most relevant experience and
 renders the result to a polished, single-page PDF. It's a genuinely public,
