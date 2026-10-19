@@ -20,10 +20,9 @@ spec:
     targetRevision: main
     path: helm/resume-builder
     helm:
-      # values.yaml (app config) is always loaded as the chart's base -
-      # this just layers the observability-stack config on top of it.
-      valueFiles:
-        - values-monitoring.yaml
+      # Only values.yaml, which Helm always loads. `values-monitoring.yaml`
+      # moved to helm/monitoring with the stack it configured.
+      releaseName: resume-builder
   destination:
     server: https://kubernetes.default.svc
     namespace: resume-builder
